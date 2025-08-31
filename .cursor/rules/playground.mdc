@@ -1,0 +1,153 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+# Playground
+
+> Enable users to interact with your API
+
+## Overview
+
+The API playground is an interactive environment that lets users test and explore your API endpoints. Developers can craft API requests, submit them, and view responses without leaving your documentation.
+
+<Frame>
+  <img src="https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-light.png?maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=ef9b28d31950744014c4974fbde87c47" alt="API playground for the trigger an update endpoint." className="block dark:hidden" width="2534" height="1022" data-path="images/playground/API-playground-light.png" srcset="https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-light.png?w=280&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=a41220be7d77a53e1b8247d137fc6de5 280w, https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-light.png?w=560&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=53e0c57daf69e7ccd6db2a19d9b02189 560w, https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-light.png?w=840&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=3bca54c2dc31fa714cb503d4b3cf6eec 840w, https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-light.png?w=1100&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=ebfaa2a14bb77b0af6f80faa7dfa5e19 1100w, https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-light.png?w=1650&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=ceee12f7aa27a7c9107b1b552757d42a 1650w, https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-light.png?w=2500&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=83f4d60f257b6db3e8afaf312dfeed48 2500w" data-optimize="true" data-opv="2" />
+
+  <img src="https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-dark.png?maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=82e7c7fe1dc791c12f1a84213551705a" alt="API playground for the trigger an update endpoint." className="hidden dark:block" width="2534" height="1022" data-path="images/playground/API-playground-dark.png" srcset="https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-dark.png?w=280&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=104e043783c4912543217ef609f4cced 280w, https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-dark.png?w=560&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=762d12bdd6b0ab4c4e4e36fbf3a715a8 560w, https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-dark.png?w=840&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=803cb6334db2cd1ade1f6c0354519edb 840w, https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-dark.png?w=1100&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=4350e3fafc29f3ee4d9b22eb7e404744 1100w, https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-dark.png?w=1650&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=86f38d0bc6ec71074a41c68b93b7bb34 1650w, https://mintcdn.com/mintlify/f7fo9pnTEtzBD70_/images/playground/API-playground-dark.png?w=2500&maxW=2534&auto=format&n=f7fo9pnTEtzBD70_&q=85&s=5da70709847aea735f00ae299ceed670 2500w" data-optimize="true" data-opv="2" />
+</Frame>
+
+The playground is automatically generated from your OpenAPI specification or AsyncAPI schema so any updates to your API are automatically reflected in the playground. You can also manually create API reference pages after defining a base URL and authentication method in your `docs.json`.
+
+We recommend generating your API playground from an OpenAPI specification. See [OpenAPI Setup](/api-playground/openapi-setup) for more information on creating your OpenAPI document.
+
+## Getting started
+
+<Steps>
+  <Step title="Add your OpenAPI specification file.">
+    <Info>
+      Make sure that your OpenAPI specification file is valid using the [Swagger Editor](https://editor.swagger.io/) or [Mint CLI](https://www.npmjs.com/package/mint).
+    </Info>
+
+    ```bash {2}
+    /your-project
+      |- docs.json
+      |- openapi.json
+    ```
+  </Step>
+
+  <Step title="Configure `docs.json`.">
+    Update your `docs.json` to reference your OpenAPI specification. Add an `openapi` property to any navigation element to auto-populate your docs with pages for each endpoint specified in your OpenAPI document.
+
+    This example generates a page for each endpoint specified in `openapi.json` and organize them under the "API reference" group in your navigation.
+
+    ```json
+    "navigation": {
+      "groups": [
+        {
+          "group": "API reference",
+          "openapi": "openapi.json"
+        }
+      ]
+    }
+    ```
+
+    To generate pages for only specific endpoints, list the endpoints in the `pages` property of the navigation element.
+
+    This example generates pages for only the `GET /users` and `POST /users` endpoints. To genereate other endpoint pages, add additional endpoints to the `pages` array.
+
+    ```json
+    "navigation": {
+      "groups": [
+          {
+            "group": "API reference",
+            "openapi": "openapi.json",
+            "pages": [
+              "GET /users",
+              "POST /users"
+            ]
+          }
+      ]
+    }
+    ```
+  </Step>
+</Steps>
+
+## Customizing your playground
+
+You can customize your API playground by defining the following properties in your `docs.json`.
+
+<ResponseField name="playground" type="object">
+  Configurations for the API playground.
+
+  <Expandable title="playground" defaultOpen="True">
+    <ResponseField name="display" type="&#x22;interactive&#x22; | &#x22;simple&#x22; | &#x22;none&#x22;">
+      The display mode of the API playground.
+
+      * `"interactive"`: Display the interactive playground.
+      * `"simple"`: Display a copyable endpoint with no playground.
+      * `"none"`: Display nothing.
+
+      Defaults to `interactive`.
+    </ResponseField>
+
+    <ResponseField name="proxy" type="boolean" defaultOpen="True">
+      Whether to pass API requests through a proxy server. Defaults to `true`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="examples" type="object">
+  Configurations for the autogenerated API examples.
+
+  <Expandable title="examples" defaultOpen="True">
+    <ResponseField name="languages" type="array of string">
+      Example languages for the autogenerated API snippets.
+
+      Languages display in the order specified.
+    </ResponseField>
+
+    <ResponseField name="defaults" type="&#x22;required&#x22; | &#x22;all&#x22;">
+      Whether to show optional parameters in API examples. Defaults to `all`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example configuration
+
+```json
+{
+ "api": {
+   "playground": {
+     "display": "interactive"
+   },
+   "examples": {
+     "languages": ["curl", "python", "javascript"],
+     "defaults": "required"
+   }
+ }
+}
+```
+
+This example configures the API playground to be interactive with example code snippets for cURL, Python, and JavaScript. Only required parameters are shown in the code snippets.
+
+### Custom endpoint pages
+
+When you need more control over your API documentation, use the `x-mint` extension in your OpenAPI specification or create individual `MDX` pages for your endpoints.
+
+Both options allow you to:
+
+* Customize page metadata
+* Add additional content like examples
+* Control playground behavior per page
+
+The `x-mint` extension is recommended so that all of your API documentation is automatically generated from your OpenAPI specification and maintained in one file.
+
+Individual `MDX` pages are recommended for small APIs or when you want to experiment with changes on a per-page basis.
+
+For more information, see [x-mint extension](/api-playground/openapi-setup#x-mint-extension) and [MDX Setup](/api-playground/mdx/configuration).
+
+## Further reading
+
+* [AsyncAPI Setup](/api-playground/asyncapi/setup) for more information on creating your AsyncAPI schema to generate WebSocket reference pages.

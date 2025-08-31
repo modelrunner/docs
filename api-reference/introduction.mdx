@@ -1,33 +1,53 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: 'Authorization'
+description: 'Use API keys in the Authorization header to access ModelRunner APIs.'
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+## Authorization
 
-## Welcome
+All API requests require an API key and must include it using the Key scheme in the `Authorization` header.
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+<Steps>
+<Step title="Create an API key">
+  Go to your ModelRunner Dashboard, open <b>Profile</b> → <b>Keys</b>, and select <b>Create key</b>.
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+  <Tip>
+  Give your key a descriptive name and minimal required permissions.
+  </Tip>
+</Step>
 
-## Authentication
+<Step title="Copy and store the key securely">
+  Copy the generated key value (for example, <code>modelrunner_key</code>) and store it in your password manager or environment variables.
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+  <Warning>
+  Treat API keys like passwords. Do not commit them to version control.
+  </Warning>
+</Step>
 
-```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
-```
+<Step title="Use the key in request headers">
+  Include the key using the <code>Authorization</code> header with the Key scheme:
+
+  ```bash
+  Authorization: Key modelrunner_key
+  ```
+
+  <CodeGroup>
+  ```bash cURL
+  curl -H "Authorization: Key modelrunner_key" \
+       https://api.modelrunner.ai/health
+  ```
+
+  ```javascript Node.js
+  import fetch from 'node-fetch';
+
+  const res = await fetch('https://api.modelrunner.ai/health', {
+    headers: { Authorization: 'Key modelrunner_key' }
+  });
+  ```
+  </CodeGroup>
+
+  <Check>
+  You should receive a 200 response when the header is set correctly.
+  </Check>
+</Step>
+</Steps>
