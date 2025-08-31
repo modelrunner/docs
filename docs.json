@@ -47,6 +47,12 @@
             ]
           },
           {
+            "group": "SDKs",
+            "pages": [
+              "clients/js-client"
+            ]
+          },
+          {
             "group": "Customization",
             "pages": [
               "essentials/settings",

@@ -14,7 +14,7 @@ use components rules while creating the documentations.
 
 the followings are the components that you can use:
 
-- Headers and text
+- headers-and-text
 - accordions
 - callouts
 - cards

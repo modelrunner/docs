@@ -1,0 +1,189 @@
+---
+title: "JavaScript Client"
+description: "Install, configure, and use the ModelRunner JavaScript/TypeScript SDK."
+icon: "square-code"
+---
+
+## Overview
+
+ModelRunner provides a unified JavaScript/TypeScript SDK to call any supported model with a consistent interface. Use it in Node.js, serverless runtimes, and—via a proxy—in the browser.
+
+<Callout>
+For client-side apps, never expose secrets. Use the proxy pattern shown below to safely forward requests.
+</Callout>
+
+## Installation
+
+<CodeGroup>
+
+```bash npm
+npm i @modelrunner/client
+```
+
+```bash yarn
+yarn add @modelrunner/client
+```
+
+```bash pnpm
+pnpm add @modelrunner/client
+```
+
+</CodeGroup>
+
+## Configure credentials
+
+Configure the client with a single key. Environment variables are recommended on the server.
+
+```ts
+import { modelrunner } from "@modelrunner/client";
+
+modelrunner.config({
+  credentials: process.env.MODELRUNNER_KEY,
+});
+```
+
+<Tip>
+Get your credentials from your ModelRunner account. Keep them server-only.
+</Tip>
+
+## Quick start
+
+<Steps>
+  <Step title="Install the SDK">Add the `@modelrunner/client` package to your project.</Step>
+  <Step title="Configure credentials">Call `modelrunner.config` early in your app lifecycle.</Step>
+  <Step title="Run a model">Use `modelrunner.run` or `modelrunner.subscribe` as shown below.</Step>
+</Steps>
+
+### Run a function with `modelrunner.run`
+
+Returns a promise that resolves to the function result.
+
+<Tabs>
+  <Tab title="TypeScript">
+
+```ts
+import { modelrunner } from "@modelrunner/client";
+
+const result = await modelrunner.run("my-function-id", {
+  input: { prompt: "A lighthouse on a cliff at sunrise" },
+});
+
+console.log(result);
+```
+
+  </Tab>
+  <Tab title="JavaScript">
+
+```js
+import { modelrunner } from "@modelrunner/client";
+
+const result = await modelrunner.run("my-function-id", {
+  input: { prompt: "A lighthouse on a cliff at sunrise" },
+});
+
+console.log(result);
+```
+
+  </Tab>
+</Tabs>
+
+### Long-running jobs with `modelrunner.subscribe`
+
+Leverage the queue for long-running tasks. Optionally listen to queue updates.
+
+```ts
+import { modelrunner } from "@modelrunner/client";
+
+const result = await modelrunner.subscribe("my-function-id", {
+  input: { task: "bulk-process" },
+  onQueueUpdate(update) {
+    if (update.status === "IN_QUEUE") {
+      console.log(`Position in queue: ${update.position}`);
+    }
+  },
+});
+
+console.log(result);
+```
+
+## Using the client in browsers (via proxy)
+
+To keep secrets safe, put credentials on a server route and forward requests from your frontend.
+
+<CodeGroup>
+
+```ts server (Next.js API Route)
+// /pages/api/modelrunner-proxy.ts
+import type { NextApiRequest, NextApiResponse } from "next";
+import { modelrunner } from "@modelrunner/client";
+
+modelrunner.config({
+  credentials: process.env.MODELRUNNER_KEY,
+});
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    const { functionId, input } = req.body;
+    const result = await modelrunner.run(functionId, { input });
+    res.status(200).json(result);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+}
+```
+
+```ts client (Frontend)
+async function callModel(functionId: string, input: unknown) {
+  const res = await fetch("/api/modelrunner-proxy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ functionId, input }),
+  });
+  if (!res.ok) throw new Error("Request failed");
+  return res.json();
+}
+```
+
+</CodeGroup>
+
+## Environments
+
+<ListTable>
+  <Title>Supported runtimes</Title>
+  <Header>
+    <Row>
+      <Cell>Runtime</Cell>
+      <Cell>Support</Cell>
+      <Cell>Notes</Cell>
+    </Row>
+  </Header>
+  <Body>
+    <Row>
+      <Cell>Node.js 18+</Cell>
+      <Cell>Full</Cell>
+      <Cell>Recommended for servers and CLIs</Cell>
+    </Row>
+    <Row>
+      <Cell>Vercel/Edge runtimes</Cell>
+      <Cell>Full</Cell>
+      <Cell>Keep credentials in environment variables</Cell>
+    </Row>
+    <Row>
+      <Cell>Browsers</Cell>
+      <Cell>Via proxy</Cell>
+      <Cell>Do not embed secrets client-side</Cell>
+    </Row>
+    <Row>
+      <Cell>React Native</Cell>
+      <Cell>Via proxy</Cell>
+      <Cell>Call a secure backend route</Cell>
+    </Row>
+  </Body>
+</ListTable>
+
+## See also
+
+- [API reference](/api-reference/introduction)
+- [Model example](https://modelrunner.ai/bytedance/sdxl-lightning-4step)
+
+
