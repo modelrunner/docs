@@ -1,0 +1,74 @@
+---
+title: "API keys"
+description: "Create, name, copy, and delete API keys from your ModelRunner profile"
+icon: "key"
+---
+
+## Retrieve and manage your API keys
+
+Use API keys to authenticate requests to ModelRunner. Follow these steps to create a key, give it a clear name, copy it securely, and delete it when no longer needed.
+
+<Steps>
+  <Step title="Open Profile → API Keys">
+    Go to your account menu and select <strong>Profile</strong>, then open <strong>API Keys</strong>.
+  </Step>
+
+  <Step title="Create API key">
+    Click <strong>Create API key</strong>.
+
+    <Tip>
+    Prefer one key per environment or integration (for example: "staging-web", "prod-data-pipeline").
+    </Tip>
+  </Step>
+
+  <Step title="Name the key">
+    Enter a descriptive name so you can identify usage later, then confirm to generate the key.
+  </Step>
+
+  <Step title="Copy the key">
+    Copy the value and store it in a secure secrets manager or environment variable. You will use it in the <code>Authorization</code> header.
+
+    <CodeGroup>
+    ```bash cURL
+    curl -X GET "https://queue.modelrunner.run/{owner}/{model}/requests/{request_id}/status" \
+      -H "Authorization: Key YOUR_API_KEY"
+    ```
+
+    ```javascript Node.js
+    const res = await fetch(
+      `https://queue.modelrunner.run/${owner}/${model}/requests/${requestId}/status`,
+      { headers: { Authorization: `Key ${process.env.MODELRUNNER_API_KEY}` } }
+    );
+    const data = await res.json();
+    ```
+    </CodeGroup>
+
+    <Warning>
+    You can only view the full API key once at creation time. If lost, delete it and create a new one. Never share keys publicly or embed them in client-side code.
+    </Warning>
+  </Step>
+</Steps>
+
+<Check>
+Your API key is ready. Test it with a quick request and verify you receive a valid response.
+</Check>
+
+## Delete an API key
+
+If an API key is no longer needed or has been exposed, you should delete it immediately to prevent unauthorized access.
+
+To delete an API key:
+
+- Go to the API Keys section in your profile.
+- Find the key you want to remove.
+- Click **Delete** and confirm your choice.
+
+After deletion, any requests using that key will fail with a 401 Unauthorized error.
+
+<Tip>
+Regularly review and remove unused or compromised API keys to keep your account secure.
+</Tip>
+
+
+
+
