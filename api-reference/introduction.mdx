@@ -34,13 +34,13 @@ All API requests require an API key and must include it using the Key scheme in 
   <CodeGroup>
   ```bash cURL
   curl -H "Authorization: Key modelrunner_key" \
-       https://api.modelrunner.ai/health
+       https://queue.modelrunner.run/bytedance/sdxl-lightning-4step/requests/FeLpfyrYRTXxsY7EB7Ehy
   ```
 
   ```javascript Node.js
   import fetch from 'node-fetch';
 
-  const res = await fetch('https://api.modelrunner.ai/health', {
+  const res = await fetch('http://queue.modelrunner.run/bytedance/sdxl-lightning-4step/requests/FeLpfyrYRTXxsY7EB7Ehy', {
     headers: { Authorization: 'Key modelrunner_key' }
   });
   ```

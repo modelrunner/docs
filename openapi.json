@@ -6,7 +6,7 @@
     "description": "Endpoints to create, track, retrieve, and cancel inference requests on ModelRunner."
   },
   "servers": [
-    { "url": "https://queue.modelrunner.ai" }
+    { "url": "https://queue.modelrunner.run" }
   ],
   "security": [
     { "apiKeyAuth": [] }

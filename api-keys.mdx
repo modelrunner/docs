@@ -30,13 +30,13 @@ Use API keys to authenticate requests to ModelRunner. Follow these steps to crea
 
     <CodeGroup>
     ```bash cURL
-    curl -X GET "https://queue.modelrunner.ai/{owner}/{model}/requests/{request_id}/status" \
+    curl -X GET "https://queue.modelrunner.run/{owner}/{model}/requests/{request_id}/status" \
       -H "Authorization: Key YOUR_API_KEY"
     ```
 
     ```javascript Node.js
     const res = await fetch(
-      `https://queue.modelrunner.ai/${owner}/${model}/requests/${requestId}/status`,
+      `https://queue.modelrunner.run/${owner}/${model}/requests/${requestId}/status`,
       { headers: { Authorization: `Key ${process.env.MODELRUNNER_API_KEY}` } }
     );
     const data = await res.json();
