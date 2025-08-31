@@ -1,14 +1,39 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
+  "theme": "maple",
   "name": "Mint Starter Kit",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#0D9373",
+    "light": "#55D799",
+    "dark": "#0D9373"
   },
   "favicon": "/favicon.svg",
+
   "navigation": {
+    "dropdowns": [
+      {
+        "dropdown": "Documentation",
+        "icon": "book",
+        "description": "Set up your documentation",
+        "groups": []
+      },
+      {
+        "dropdown": "API Reference",
+        "description": "Reference for the API",
+        "icon": "terminal",
+        "groups": [
+          
+        ]
+      },
+      {
+        "dropdown": "Changelog",
+        "icon": "history",
+        "description": "Updates and changes",
+        "groups": [
+         
+        ]
+      }
+    ],
     "tabs": [
       {
         "tab": "Guides",

@@ -1,0 +1,35 @@
+---
+alwaysApply: true
+---
+Modelrunner is a platform for running models. It provides seemles ui for experimenting with models. Each model page has a playground with input form, ouput display, model description, related links and cost information.
+
+It currently supports around 10 models. But do not mention this in the documentations.
+It currently does not support serverless deployment and model hosting.
+
+The following is an example model page url: https://modelrunner.ai/bytedance/sdxl-lightning-4step
+
+It has a unified api, javascript sdk.
+
+use components rules while creating the documentations.
+
+the followings are the components that you can use:
+
+- Headers and text
+- accordions
+- callouts
+- cards
+- card-groups
+- code
+- code-groups
+- examples
+- expandables
+- image-embeds
+- list-table
+- fields
+- frames
+- icons
+- mermaid-diagrams
+- steps
+- tabs
+- tooltips
+- update

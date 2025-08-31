@@ -1,0 +1,52 @@
+---
+alwaysApply: false
+---
+
+
+# Callouts
+
+> Use callouts to add eye-catching context to your content
+
+Callouts can be styled as a Note, Warning, Info, Tip, or Check:
+
+<Note>This adds a note in the content</Note>
+
+```mdx
+<Note>This adds a note in the content</Note>
+```
+
+<Warning>This raises a warning to watch out for</Warning>
+
+```mdx
+<Warning>This raises a warning to watch out for</Warning>
+```
+
+<Info>This draws attention to important information</Info>
+
+```mdx
+<Info>This draws attention to important information</Info>
+```
+
+<Tip>This suggests a helpful tip</Tip>
+
+```mdx
+<Tip>This suggests a helpful tip</Tip>
+```
+
+<Check>This brings us a checked status</Check>
+
+```mdx
+<Check>This brings us a checked status</Check>
+```
+
+<Danger>This is a danger callout</Danger>
+
+```jsx
+<Danger>This is a danger callout</Danger>
+```
+
+<RequestExample>
+  ```mdx Callout Example
+  <Note>This adds a note in the content</Note>
+  ```
+</RequestExample>
