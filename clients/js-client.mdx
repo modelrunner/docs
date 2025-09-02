@@ -64,8 +64,8 @@ Returns a promise that resolves to the function result.
 ```ts
 import { modelrunner } from "@modelrunner/client";
 
-const result = await modelrunner.run("my-function-id", {
-  input: { prompt: "A lighthouse on a cliff at sunrise" },
+const result = await modelrunner.run("bytedance/sdxl-lightning-4step", {
+  input: { "prompt": "two friends cooking together" },
 });
 
 console.log(result);
@@ -77,8 +77,8 @@ console.log(result);
 ```js
 import { modelrunner } from "@modelrunner/client";
 
-const result = await modelrunner.run("my-function-id", {
-  input: { prompt: "A lighthouse on a cliff at sunrise" },
+const result = await modelrunner.run("bytedance/sdxl-lightning-4step", {
+  input: { "prompt": "two friends cooking together" },
 });
 
 console.log(result);
@@ -94,8 +94,8 @@ Leverage the queue for long-running tasks. Optionally listen to queue updates.
 ```ts
 import { modelrunner } from "@modelrunner/client";
 
-const result = await modelrunner.subscribe("my-function-id", {
-  input: { task: "bulk-process" },
+const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
+  input: { "prompt": "two friends cooking together" },
   onQueueUpdate(update) {
     if (update.status === "IN_QUEUE") {
       console.log(`Position in queue: ${update.position}`);

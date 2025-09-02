@@ -18,7 +18,7 @@
         "description": "Enqueue a new inference job for the specified model. Request body must match the model's PredictionRequest schema.",
         "parameters": [
           { "$ref": "#/components/parameters/ownerName" },
-          { "$ref": "#/components/parameters/modelName" }
+          { "$ref": "#/components/parameters/modelName"}
         ],
         "requestBody": {
           "required": true,
@@ -27,7 +27,7 @@
               "schema": {
                 "type": "object",
                 "description": "Model-specific input. Validated against the model's PredictionRequest schema at runtime.",
-                "additionalProperties": true
+                "$ref": "#/components/schemas/PredictionRequest"
               }
             }
           }
@@ -133,14 +133,14 @@
         "name": "ownerName",
         "in": "path",
         "required": true,
-        "schema": { "type": "string" },
+        "schema": { "type": "string", "default": "bytedance" },
         "description": "Model owner or organization name."
       },
       "modelName": {
         "name": "modelName",
         "in": "path",
         "required": true,
-        "schema": { "type": "string" },
+        "schema": { "type": "string", "default": "sdxl-lightning-4step" },
         "description": "Model alias on ModelRunner."
       },
       "requestId": {
@@ -186,6 +186,34 @@
       }
     },
     "schemas": {
+      "PredictionRequest": {
+        "type": "object",
+        "properties": {
+            "prompt": { "type": "string"},
+            "negative_prompt": { "type": "string"},
+            "width": { "type": "number"},
+            "height": { "type": "number"},
+            "num_outputs": { "type": "number"},
+            "scheduler": { "type": "string"},
+            "num_inference_steps": { "type": "number"},
+            "guidance_scale": { "type": "number"},
+            "seed": { "type": "number"},
+            "disable_safety_checker": { "type": "string", "enum": ["false"] }
+          },
+        "description": "Model-specific input. Validated against the model's PredictionRequest schema at runtime.",
+        "default": {
+              "prompt": "two friends cooking together",
+              "negative_prompt": "worst quality, low quality, deformed, extra fingers",
+              "width": 1280,
+              "height": 1024,
+              "num_outputs": 1,
+              "scheduler": "K_EULER",
+              "num_inference_steps": 4,
+              "guidance_scale": 0,
+              "seed": 103,
+              "disable_safety_checker": "false"
+            }
+      },
       "CreateRequestResponse": {
         "type": "object",
         "properties": {

@@ -33,8 +33,8 @@ modelrunner.config({
 The `modelrunner.run` method is the simplest way to execute a function. It returns a promise that resolves to the function's result:
 
 ```ts
-const result = await modelrunner.run("my-function-id", {
-  input: { foo: "bar" },
+const result = await modelrunner.run("bytedance/sdxl-lightning-4step", {
+  input: { "prompt": "two friends cooking together" },
 });
 ```
 
@@ -43,8 +43,8 @@ const result = await modelrunner.run("my-function-id", {
 The `modelrunner.subscribe` method offers a powerful way to rely on the [queue system](https://docs.modelrunner.ai/function-endpoints/queue) to execute long-running functions. It returns the result once it's done like any other async function, so your don't have to deal with queue status updates yourself. However, it does support queue events, in case you want to listen and react to them:
 
 ```ts
-const result = await modelrunner.subscribe("my-function-id", {
-  input: { foo: "bar" },
+const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
+  input: { "prompt": "two friends cooking together" },
   onQueueUpdate(update) {
     if (update.status === "IN_QUEUE") {
       console.log(`Your position in the queue is ${update.position}`);
