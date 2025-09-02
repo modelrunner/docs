@@ -1,7 +1,7 @@
 ---
 title: "Next.js App Router"
 description: "Create a Next.js app (App Router) with a simple form that calls a ModelRunner model using the JavaScript client."
-icon: "nextjs"
+icon: "file-code"
 ---
 
 ## Overview
@@ -105,8 +105,8 @@ export default function HomePage() {
     setError(null);
     setResult(null);
     try {
-      // Input follows PredictionRequest schema from OpenAPI
-      const response = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
+
+      const response = await modelrunner.run("bytedance/sdxl-lightning-4step", {
         input: {
           prompt,
           negative_prompt: "worst quality, low quality, deformed, extra fingers",
@@ -160,7 +160,6 @@ export default function HomePage() {
       {result && (
         <section className="space-y-2">
           <h2 className="text-lg font-medium">Result</h2>
-          {/* Status and timings from GetResultResponse */}
           <div className="text-sm text-gray-700">
             <div>
               <span className="font-semibold">Status:</span> {result?.status}
@@ -172,7 +171,6 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* Render output based on OpenAPI GetResultResponse.output */}
           {Array.isArray(result?.output) ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {result.output.map((item: any, index: number) => {
@@ -195,14 +193,6 @@ export default function HomePage() {
             <pre className="overflow-auto rounded-md bg-gray-100 p-3 text-sm">
               {JSON.stringify(result, null, 2)}
             </pre>
-          )}
-
-          {/* Optional logs if provided */}
-          {result?.logs && (
-            <details className="rounded-md border bg-gray-50 p-3 text-sm">
-              <summary className="cursor-pointer font-medium">Logs</summary>
-              <pre className="mt-2 whitespace-pre-wrap">{result.logs}</pre>
-            </details>
           )}
         </section>
       )}

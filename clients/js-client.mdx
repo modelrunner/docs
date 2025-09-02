@@ -1,7 +1,7 @@
 ---
 title: "JavaScript Client"
 description: "Install, configure, and use the ModelRunner JavaScript/TypeScript SDK."
-icon: "square-code"
+icon: "node-js"
 ---
 
 ## Overview
@@ -51,43 +51,10 @@ Get your credentials from your ModelRunner account. Keep them server-only.
 <Steps>
   <Step title="Install the SDK">Add the `@modelrunner/client` package to your project.</Step>
   <Step title="Configure credentials">Call `modelrunner.config` early in your app lifecycle.</Step>
-  <Step title="Run a model">Use `modelrunner.run` or `modelrunner.subscribe` as shown below.</Step>
+  <Step title="Call a model">Use `modelrunner.subscribe` as shown below.</Step>
 </Steps>
 
-### Run a function with `modelrunner.run`
-
-Returns a promise that resolves to the function result.
-
-<Tabs>
-  <Tab title="TypeScript">
-
-```ts
-import { modelrunner } from "@modelrunner/client";
-
-const result = await modelrunner.run("bytedance/sdxl-lightning-4step", {
-  input: { "prompt": "two friends cooking together" },
-});
-
-console.log(result);
-```
-
-  </Tab>
-  <Tab title="JavaScript">
-
-```js
-import { modelrunner } from "@modelrunner/client";
-
-const result = await modelrunner.run("bytedance/sdxl-lightning-4step", {
-  input: { "prompt": "two friends cooking together" },
-});
-
-console.log(result);
-```
-
-  </Tab>
-</Tabs>
-
-### Long-running jobs with `modelrunner.subscribe`
+### Call a model with `modelrunner.subscribe`
 
 Leverage the queue for long-running tasks. Optionally listen to queue updates.
 
@@ -108,43 +75,38 @@ console.log(result);
 
 ## Using the client in browsers (via proxy)
 
-To keep secrets safe, put credentials on a server route and forward requests from your frontend.
+To keep secrets safe, use the official server proxy so credentials stay on your server.
 
 <CodeGroup>
 
-```ts server (Next.js API Route)
-// /pages/api/modelrunner-proxy.ts
-import type { NextApiRequest, NextApiResponse } from "next";
-import { modelrunner } from "@modelrunner/client";
+```ts server (Next.js Page Router)
+// /pages/api/modelrunner/proxy.ts
+export { handler as default } from "@modelrunner/server-proxy/nextjs";
+```
 
-modelrunner.config({
-  credentials: process.env.MODELRUNNER_KEY,
-});
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  try {
-    const { functionId, input } = req.body;
-    const result = await modelrunner.run(functionId, { input });
-    res.status(200).json(result);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-}
+```ts server (Next.js App Router)
+// /app/api/modelrunner/proxy/route.ts
+import { route } from "@modelrunner/server-proxy/nextjs";
+export const { GET, POST, PUT } = route;
 ```
 
 ```ts client (Frontend)
-async function callModel(functionId: string, input: unknown) {
-  const res = await fetch("/api/modelrunner-proxy", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ functionId, input }),
-  });
-  if (!res.ok) throw new Error("Request failed");
-  return res.json();
-}
+import { modelrunner } from "@modelrunner/client";
+
+modelrunner.config({
+  proxyUrl: "/api/modelrunner/proxy",
+});
+
+const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
+  input: { prompt: "two friends cooking together" },
+});
 ```
 
 </CodeGroup>
+
+<Warning>
+Set `MODELRUNNER_KEY` in your server environment. The proxy reads this value to authenticate requests. Never expose it in the browser.
+</Warning>
 
 
 

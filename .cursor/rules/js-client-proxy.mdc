@@ -1,0 +1,58 @@
+---
+alwaysApply: false
+---
+
+modelrunner.ai proxy library
+@modelrunner/server-proxy npm package
+
+Introduction
+The @modelrunner/server-proxy library enables you to route client requests through your own server, therefore safeguarding sensitive credentials. With built-in support for popular frameworks like Next.js and Express, setting up the proxy becomes a breeze.
+
+Install the proxy library:
+npm install --save @modelrunner/server-proxy
+Next.js page router integration
+For Next.js applications using the page router:
+
+Create an API route in your Next.js app, as a convention we suggest using pages/api/modelrunner/proxy.js (or .ts if you're using TypeScript):
+Re-export the proxy handler from the library as the default export:
+export { handler as default } from "@modelrunner/server-proxy/nextjs";
+Ensure you've set the MODELRUNNER_KEY as an environment variable in your server, containing a valid API Key.
+Next.js app router integration
+For Next.js applications using the app router:
+
+Create an API route in your Next.js app, as a convention we suggest using app/api/modelrunner/proxy/route.js (or .ts if you're using TypeScript):
+
+Re-export the proxy handler from the library as the default export:
+
+import { route } from "@modelrunner/server-proxy/nextjs";
+
+export const { GET, POST, PUT } = route;
+Ensure you've set the MODELRUNNER_KEY as an environment variable in your server, containing a valid API Key.
+
+Express integration
+For Express applications:
+
+Make sure your app supports JSON payloads, either by using express.json() (recommended) or body-parser:
+
+app.use(express.json());
+Add the proxy route and its handler. Note that if your client lives outside of the express app (i.e. the express app is solely used as an external API for other clients), you will need to allow CORS on the proxy route:
+
+import * as modelrunnerProxy from "@modelrunner/server-proxy/express";
+
+app.all(
+  modelrunnerProxy.route, // '/api/modelrunner/proxy' or you can use your own
+  cors(), // if external clients will use the proxy
+  modelrunnerProxy.handler,
+);
+Ensure you've set the MODELRUNNER_KEY as an environment variable in your server, containing a valid API Key.
+
+Client configuration
+Once you've set up the proxy, you can configure the client to use it:
+
+import { modelrunner } from "@modelrunner/client";
+
+modelrunner.config({
+  proxyUrl: "/api/modelrunner/proxy", // or https://my.app.com/api/modelrunner/proxy
+});
+Now all your client calls will route through your server proxy, so your credentials are protected.
+
