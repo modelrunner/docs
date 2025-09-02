@@ -28,6 +28,12 @@
             "pages": [
               "clients/js-client"
             ]
+          },
+          {
+            "group": "Recipes",
+            "pages": [
+              "recipes-nextjs-app"
+            ]
           }
         ]
       },
