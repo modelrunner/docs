@@ -46,15 +46,8 @@ modelrunner.config({
 Get your credentials from your ModelRunner account. Keep them server-only.
 </Tip>
 
-## Quick start
 
-<Steps>
-  <Step title="Install the SDK">Add the `@modelrunner/client` package to your project.</Step>
-  <Step title="Configure credentials">Call `modelrunner.config` early in your app lifecycle.</Step>
-  <Step title="Call a model">Use `modelrunner.subscribe` as shown below.</Step>
-</Steps>
-
-### Call a model with `modelrunner.subscribe`
+## Call a model
 
 Leverage the queue for long-running tasks. Optionally listen to queue updates.
 
@@ -70,8 +63,42 @@ const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
   },
 });
 
-console.log(result);
+console.log(result.output);
 ```
+
+
+
+## Upload files
+
+Upload local files to ModelRunner storage and receive a temporary URL you can pass to model inputs (for example, image or audio URLs).
+
+<CodeGroup>
+
+```ts Node.js (ESM)
+import { modelrunner } from "@modelrunner/client";
+import fs from "node:fs";
+
+const fileBuffer = fs.readFileSync("./image.jpeg");
+const url = await modelrunner.storage.upload(new Blob([fileBuffer]));
+console.log(url);
+```
+
+</CodeGroup>
+
+You can then pass the returned `url` to your model input:
+
+```ts
+const result = await modelrunner.subscribe("swook/inspyrenet", {
+  input: { image_path: url,},
+});
+```
+
+<Tip>
+In Node.js, `Blob` is available in modern runtimes (Node 18+). If you use an older version, consider upgrading or using a compatible polyfill.
+
+The storage service accepts any binary file type (images, audio, video, documents).
+</Tip>
+
 
 ## Using the client in browsers (via proxy)
 
@@ -107,7 +134,6 @@ const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
 <Warning>
 Set `MODELRUNNER_KEY` in your server environment. The proxy reads this value to authenticate requests. Never expose it in the browser.
 </Warning>
-
 
 
 

@@ -26,7 +26,8 @@
           {
             "group": "SDKs",
             "pages": [
-              "clients/js-client"
+              "clients/js-client",
+              "clients/python-client"
             ]
           },
           {

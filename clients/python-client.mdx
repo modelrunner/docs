@@ -1,0 +1,94 @@
+---
+title: "Python Client"
+description: "Install, configure, and use the ModelRunner Python SDK."
+icon: "python"
+---
+
+## Overview
+
+ModelRunner provides a unified Python SDK to call any supported model with a consistent interface. Use it in scripts, services, and notebooks with both async and sync workflows.
+
+<Callout>
+For scripts and notebooks, never hardcode secrets. Use environment variables to manage your key securely.
+</Callout>
+
+## Installation
+
+<CodeGroup>
+
+```bash pip
+pip install modelrunner-ai
+```
+
+```bash pip3
+pip3 install modelrunner-ai
+```
+
+```bash poetry
+poetry add modelrunner-ai
+```
+
+</CodeGroup>
+
+## Configure credentials
+
+Configure the client with a single key. Environment variables are recommended.
+
+```bash
+export MODELRUNNER_KEY=your-api-key
+```
+
+<Tip>
+Get your credentials from your ModelRunner account. Keep them server-only and out of version control.
+</Tip>
+
+
+## Call a model
+
+Leverage the queue for long-running tasks. Optionally listen to queue updates.
+
+```python
+import asyncio
+import modelrunner_ai
+
+async def main():
+    response = await modelrunner_ai.submit_async(
+        "bytedance/sdxl-lightning-4step",
+        arguments={"prompt": "two friends cooking together"}
+    )
+
+    logs_index = 0
+    async for event in response.iter_events(with_logs=True):
+        if isinstance(event, modelrunner_ai.Queued):
+            print("Queued. Position:", event.position)
+        elif isinstance(event, (modelrunner_ai.InProgress, modelrunner_ai.Completed)):
+            new_logs = event.logs[logs_index:]
+            for log in new_logs:
+                print(log["message"])
+            logs_index = len(event.logs)
+
+    result = await response.get()
+    print(result["output"])
+
+asyncio.run(main())
+```
+
+## Upload files
+
+Upload local files to ModelRunner storage and receive a temporary URL you can pass to model inputs (for example, image or audio URLs).
+
+<CodeGroup>
+
+```python Python
+import modelrunner_ai
+
+input_image = modelrunner_ai.upload_file("./image.jpg")
+print(input_image)
+response = modelrunner_ai.run("swook/inspyrenet", arguments={"image_path": input_image})
+print(response["output"])
+```
+
+</CodeGroup>
+
+
+
