@@ -1,0 +1,130 @@
+---
+title: "MCP server"
+description: "Connect Claude Desktop, Claude Code, Cursor, and other MCP clients directly to ModelRunner — run models, manage files, and inspect requests from your AI assistant."
+icon: "plug"
+---
+
+## Overview
+
+ModelRunner ships a hosted [Model Context Protocol](https://modelcontextprotocol.io) server that exposes the platform as a set of tools your AI assistant can call directly. Once connected, your assistant can browse models, run inference, upload files, and inspect your request history without ever leaving the chat.
+
+Connection uses **OAuth 2.1** with Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) — clients register themselves on first connect, then prompt you to log in to ModelRunner in your browser. You never paste an API key into the client config.
+
+## Quick start
+
+<Tabs>
+  <Tab title="Claude Desktop">
+    Add ModelRunner to your `claude_desktop_config.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "modelrunner": {
+          "url": "https://mcp.modelrunner.run/mcp"
+        }
+      }
+    }
+    ```
+
+    Restart Claude Desktop. On the first tool call, you'll be redirected to ModelRunner to authorize the client.
+  </Tab>
+  <Tab title="Claude Code">
+    ```bash
+    claude mcp add --transport http modelrunner https://mcp.modelrunner.run/mcp
+    ```
+
+    Then run `/mcp` inside Claude Code and complete the browser-based authorization flow.
+  </Tab>
+  <Tab title="Cursor">
+    Add to `~/.cursor/mcp.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "modelrunner": {
+          "url": "https://mcp.modelrunner.run/mcp"
+        }
+      }
+    }
+    ```
+
+    Reload Cursor and approve the OAuth prompt.
+  </Tab>
+</Tabs>
+
+<Check>
+  After authorization, ask your assistant "list the recommended image models on ModelRunner" — it should return a curated shortlist via the `recommended_models` tool.
+</Check>
+
+## Tools
+
+The server exposes 13 tools, grouped by what they do.
+
+### Discovery
+
+| Tool                  | Purpose                                                                                       |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `list_models`         | Paginated list of public models. Filters: `search`, `category`, `page`, `limit`.              |
+| `recommended_models`  | Admin-curated shortlist for a category (`image` / `video` / `utility`). Fastest pick path.    |
+| `get_model`           | Compact, LLM-friendly description of one model (inputs, outputs, pricing, examples).          |
+| `get_model_raw_schema`| Raw JSON Schema for a model's input — use this when you need exact field types.               |
+| `list_wrappers`       | Paginated list of wrappers (prompt-templated products built on base models).                  |
+| `recommended_wrappers`| Curated shortlist of wrappers by category.                                                    |
+| `get_wrapper`         | Details for one wrapper, including its base model and template.                               |
+| `search`              | Free-text search across models and wrappers in one call.                                      |
+
+### Inference
+
+| Tool               | Purpose                                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `run_model`        | Submits an async inference request. Returns `requestId` immediately. Input field for files must be a URL — use `upload_file`. |
+| `get_request`      | Returns current status, output (if completed), pricing, and error for a request.                                              |
+| `wait_for_request` | Polls server-side until terminal state. Args: `timeoutSeconds` (default 120, max 600), `pollIntervalSeconds` (default 2).     |
+
+### Files & history
+
+| Tool               | Purpose                                                                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `upload_file`      | Uploads raw `base64` bytes **or** a remote `url` to ModelRunner storage. Returns the canonical `fileUrl` for use in `run_model`. 200 MiB cap. |
+| `list_my_requests` | Authenticated user's request history, newest first. Filters: `status`, `modelEndpoint`, `page`, `limit`.                                  |
+
+<Tip>
+  Local filesystem paths are **not** accepted by `upload_file` — the MCP server is remote. Pass `base64` bytes for files on your machine, or a `url` to re-host remote media.
+</Tip>
+
+## Typical assistant flow
+
+A common end-to-end pattern your assistant will run:
+
+```text
+1. recommended_models(category="image")     → pick "bytedance/sdxl-lightning-4step"
+2. get_model(endpoint="bytedance/sdxl-...")  → confirm input fields
+3. run_model(endpoint=..., input={...})      → returns requestId
+4. wait_for_request(requestId=...)           → returns final output URLs
+```
+
+For an image-to-image flow, prepend `upload_file` to convert local bytes to a URL the model can consume.
+
+## OAuth flow (for client implementers)
+
+If you're building a third-party MCP client and want to support ModelRunner natively, the server publishes the standard discovery documents:
+
+- **Protected Resource Metadata** ([RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)): `GET /.well-known/oauth-protected-resource`
+- **Authorization Server Metadata** ([RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414)): `GET /.well-known/oauth-authorization-server`
+
+Supported flows:
+
+- `authorization_code` with PKCE (S256)
+- `refresh_token`
+- Dynamic Client Registration via `POST /oauth/register`
+- Token revocation via `POST /oauth/revoke` ([RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009))
+
+Scope: `mcp`.
+
+Unauthorized requests to `/mcp` get a `401` with a `WWW-Authenticate` header pointing at the protected-resource metadata document — the standard MCP auth discovery handshake.
+
+## Troubleshooting
+
+- **`401 Unauthorized` on every tool call** — Your token expired or was revoked. Disconnect and re-authorize in your client.
+- **Tool list missing or empty** — The client must send an `InitializeRequest` as the first POST to `/mcp` with no `Mcp-Session-Id` header. Most clients handle this automatically; check that you're using a current MCP SDK build.
+- **`upload_file` returns "exceeds the 200 MiB upload cap"** — Use the [direct multipart upload flow](/guides/file-uploads#multipart-upload-large-files) instead and pass the resulting `fileUrl` to `run_model`.

@@ -1,0 +1,114 @@
+---
+title: "Errors"
+description: "Error response shape, status codes, and how to handle each class of failure."
+icon: "triangle-exclamation"
+---
+
+## Response shape
+
+All error responses share the same JSON envelope:
+
+```json
+{
+  "error": "string or array of validation issues",
+  "request_id": "abc123…",
+  "details": { "code": "...", "validationErrors": [...] }
+}
+```
+
+- **`error`** — Human-readable message, **or** (for Zod validation failures) an array of issue objects (`{ path, message, code, ... }`).
+- **`request_id`** — Server-side correlation id. Include this when reporting issues to support.
+- **`details`** — Optional. Present on typed errors (e.g. schema validation or invalid output) — see the table below.
+
+<Tip>
+  Always check `request_id` first when triaging — it's the fastest way to pull the full server-side log for the failed call.
+</Tip>
+
+## Status codes
+
+| Status | When it happens                                                                                                              | What to do                                                                                                                    |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | Request body / params failed schema validation; the request id is malformed; or the request is not yet completed.            | Fix the input. For Zod failures, `error` is an array of issues — render `path` + `message` to your user.                      |
+| `401`  | Missing or invalid `Authorization` header.                                                                                   | Confirm the header format `Authorization: Key <your_key>` and that the key has not been deleted. See [API keys](/api-keys).   |
+| `402`  | Insufficient balance for the request. The model would not be free to run.                                                    | Top up credits and retry. The body's `error` field is human-readable.                                                         |
+| `403`  | The key is valid but does not have access to this resource.                                                                  | Use a key that owns the resource, or request access.                                                                          |
+| `404`  | Model / wrapper / request id does not exist, or the file URL is unknown.                                                     | Verify the `ownerName/alias` path or the `requestId`.                                                                         |
+| `422`  | Returned **only** by `GET /{owner}/{model}/requests/{id}` when the request finished but the output failed schema validation or the upstream provider failed after billing-normalization. | Read `error` for the upstream failure message. When `details.code === "INVALID_OUTPUT"`, `details.validationErrors` lists every schema violation. |
+| `500`  | Unexpected server error. Already logged with the `request_id` you got back.                                                  | Retry with backoff. Report `request_id` if it persists.                                                                       |
+
+### `400` — `FAILED` status payload
+
+When a request reaches a terminal `FAILED` state, `GET /{owner}/{model}/requests/{id}/status` returns HTTP `400` with the **same** `createRequestResponse` shape you'd get on success, including an `error` field:
+
+```json
+{
+  "status": "FAILED",
+  "request_id": "abc123…",
+  "response_url": "https://queue.modelrunner.run/.../requests/abc123…",
+  "status_url": "https://queue.modelrunner.run/.../requests/abc123…/status",
+  "cancel_url": "https://queue.modelrunner.run/.../requests/abc123…/cancel",
+  "queue_position": 0,
+  "logs": [],
+  "error": "Provider error: ..."
+}
+```
+
+Treat the `400` + `status: "FAILED"` combination as a terminal failure — do not retry the same request id.
+
+### `422` — schema validation failure
+
+When the upstream provider returns output that doesn't match the model's declared response schema, you get HTTP `422` with the regular `getResultResponse` body **plus** `details.code === "INVALID_OUTPUT"`:
+
+```json
+{
+  "error": "Invalid output from inference.",
+  "request_id": "abc123…",
+  "details": {
+    "code": "INVALID_OUTPUT",
+    "validationErrors": [
+      { "instancePath": "/output/0/url", "message": "must match format \"uri\"" }
+    ]
+  }
+}
+```
+
+This typically signals a provider regression. Surface the message to the user and report the `request_id` — the call has already been billed-normalized as failed and you will not be charged.
+
+## Handling errors in client code
+
+<CodeGroup>
+```ts JavaScript
+import { modelrunner } from "@modelrunner/client";
+
+try {
+  const result = await modelrunner.subscribe("owner/model", { input });
+} catch (err) {
+  // The client surfaces the API envelope on `err.body`.
+  switch (err.status) {
+    case 402: return showTopUpDialog();
+    case 422: return showProviderFailure(err.body?.error);
+    case 429: return retryWithBackoff();
+    default:  return showGenericError(err.body?.request_id);
+  }
+}
+```
+
+```python Python
+import modelrunner_ai
+from modelrunner_ai import ApiError
+
+try:
+    result = modelrunner_ai.run("owner/model", arguments=input)
+except ApiError as e:
+    if e.status == 402:
+        show_top_up_dialog()
+    elif e.status == 422:
+        show_provider_failure(e.body.get("error"))
+    else:
+        raise
+```
+</CodeGroup>
+
+<Warning>
+  Never retry on `400` (validation), `401`, `402`, `403`, `404`, or `422` — these are deterministic failures. Retry only on `429` (with backoff) and transient `5xx`.
+</Warning>

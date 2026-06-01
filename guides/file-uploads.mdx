@@ -1,0 +1,179 @@
+---
+title: "File uploads"
+description: "Upload images, audio, video, and other binary inputs to ModelRunner storage and pass the resulting URLs to model inputs."
+icon: "upload"
+---
+
+## Overview
+
+Most multimodal models on ModelRunner accept files (images, audio clips, videos) as URLs in their input. ModelRunner provides two upload patterns:
+
+- **Single-part upload** — one presigned `PUT` to S3, suitable for files up to ~5 GB.
+- **Multipart upload** — three-step flow with per-part presigned URLs, required for very large files or when you want resumability.
+
+Both flows return a canonical `media.modelrunner.ai` URL that you can pass directly to any model input field that accepts a file.
+
+<Callout>
+The SDKs wrap the single-part flow as `storage.upload()` (JS) and `upload_file()` (Python). Use the raw HTTP flow below when you need multipart or when calling the API directly.
+</Callout>
+
+## Single-part upload
+
+A two-step flow: initiate → PUT bytes to the returned presigned URL.
+
+<Steps>
+  <Step title="Initiate the upload">
+    `POST /storage/upload/initiate` returns a presigned `upload_url` and the canonical `file_url` to use as model input.
+
+    ```bash cURL
+    curl -X POST "https://api.modelrunner.run/storage/upload/initiate" \
+      -H "Authorization: Key $MODELRUNNER_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "file_name": "input.png",
+        "content_type": "image/png",
+        "size": 482917
+      }'
+    ```
+
+    Response:
+
+    ```json
+    {
+      "upload_url": "https://s3.amazonaws.com/...?X-Amz-Signature=...",
+      "file_url": "https://media.modelrunner.ai/abc123-input.png"
+    }
+    ```
+
+    | Field          | Required | Notes                                                  |
+    | -------------- | -------- | ------------------------------------------------------ |
+    | `file_name`    | yes      | Original filename; preserved (with a random prefix).   |
+    | `content_type` | yes      | MIME type. Set the same value on the `PUT` below.      |
+    | `size`         | no       | Byte size, for validation.                             |
+  </Step>
+
+  <Step title="PUT the bytes to the presigned URL">
+    Send the raw file body to `upload_url` with the same `Content-Type`. Do **not** add the `Authorization` header — the presigned URL carries its own credentials.
+
+    ```bash cURL
+    curl -X PUT "$UPLOAD_URL" \
+      -H "Content-Type: image/png" \
+      --data-binary @input.png
+    ```
+
+    On success, `file_url` is immediately usable. Pass it to any model input that accepts a URL:
+
+    ```json
+    { "image_url": "https://media.modelrunner.ai/abc123-input.png" }
+    ```
+
+    <Tip>
+      A file row is created at initiate-time. If you skip the `PUT`, the row remains as a benign orphan whose `file_url` will 404 until uploaded.
+    </Tip>
+  </Step>
+</Steps>
+
+### Using the SDKs
+
+<CodeGroup>
+```ts JavaScript
+import { modelrunner } from "@modelrunner/client";
+import fs from "node:fs";
+
+const buf = fs.readFileSync("./input.png");
+const fileUrl = await modelrunner.storage.upload(new Blob([buf]));
+
+const result = await modelrunner.subscribe("swook/inspyrenet", {
+  input: { image_path: fileUrl },
+});
+```
+
+```python Python
+import modelrunner_ai
+
+file_url = modelrunner_ai.upload_file("./input.png")
+result = modelrunner_ai.run(
+    "swook/inspyrenet",
+    arguments={"image_path": file_url},
+)
+```
+</CodeGroup>
+
+## Multipart upload (large files)
+
+For multi-gigabyte videos or when you want resumability, use the three-step multipart flow.
+
+<Steps>
+  <Step title="Initiate the multipart upload">
+    `POST /storage/upload/initiate-multipart` returns an `uploadId`, `uploadKey`, and the canonical `fileUrl`.
+
+    ```bash
+    curl -X POST "https://api.modelrunner.run/storage/upload/initiate-multipart" \
+      -H "Authorization: Key $MODELRUNNER_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{ "file_name": "clip.mp4", "content_type": "video/mp4", "size": 1500000000 }'
+    ```
+
+    Response:
+
+    ```json
+    {
+      "fileUrl": "https://media.modelrunner.ai/abc123-clip.mp4",
+      "uploadId": "2~aBcDeF...",
+      "uploadKey": "abc123-clip.mp4"
+    }
+    ```
+  </Step>
+
+  <Step title="Upload each part">
+    Split the file into parts (S3 requires each part except the last to be ≥ 5 MiB). For each part number starting at `1`, request a presigned URL and `PUT` the part to it.
+
+    ```bash
+    curl -G "https://api.modelrunner.run/storage/upload/multipart-url" \
+      -H "Authorization: Key $MODELRUNNER_KEY" \
+      --data-urlencode "uploadKey=$UPLOAD_KEY" \
+      --data-urlencode "uploadId=$UPLOAD_ID" \
+      --data-urlencode "partNumber=1"
+    # → { "presignedUrl": "https://s3.amazonaws.com/...&partNumber=1&..." }
+
+    curl -X PUT "$PRESIGNED_URL" --data-binary @part-1.bin -D headers.txt
+    # Read the ETag from the response headers; you'll need it for `complete`.
+    ```
+
+    <Tip>
+      Capture the `ETag` header from each `PUT` response — S3 requires it (without quotes) when completing the upload.
+    </Tip>
+  </Step>
+
+  <Step title="Complete the upload">
+    `POST /storage/upload/complete` finalizes the multipart upload and creates the file row.
+
+    ```bash
+    curl -X POST "https://api.modelrunner.run/storage/upload/complete" \
+      -H "Authorization: Key $MODELRUNNER_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "uploadId": "'"$UPLOAD_ID"'",
+        "uploadKey": "'"$UPLOAD_KEY"'",
+        "parts": [
+          { "partNumber": 1, "etag": "e1..." },
+          { "partNumber": 2, "etag": "e2..." }
+        ]
+      }'
+    # → { "fileUrl": "https://media.modelrunner.ai/abc123-clip.mp4" }
+    ```
+
+    The returned `fileUrl` is now usable as a model input.
+  </Step>
+</Steps>
+
+## Reference
+
+| Method | Path                                  | Body / Query                                                  | Returns                              |
+| ------ | ------------------------------------- | ------------------------------------------------------------- | ------------------------------------ |
+| POST   | `/storage/upload/initiate`            | `{ file_name, content_type, size? }`                          | `{ upload_url, file_url }`           |
+| POST   | `/storage/upload/initiate-multipart`  | `{ file_name, content_type, size? }`                          | `{ fileUrl, uploadId, uploadKey }`   |
+| GET    | `/storage/upload/multipart-url`       | `?uploadKey&uploadId&partNumber`                              | `{ presignedUrl }`                   |
+| POST   | `/storage/upload/complete`            | `{ uploadId, uploadKey, parts: [{ partNumber, etag }] }`      | `{ fileUrl }`                        |
+
+All endpoints require the standard `Authorization: Key <your_key>` header. See [API keys](/api-keys).

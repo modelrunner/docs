@@ -1,0 +1,93 @@
+---
+title: "FAQ"
+description: "Common questions about authentication, billing, supported file types, and platform limits."
+icon: "circle-question"
+---
+
+## Accounts & authentication
+
+<AccordionGroup>
+  <Accordion title="How do I authenticate API requests?">
+    Pass your key in the `Authorization` header with the `Key` scheme: `Authorization: Key <your_key>`. See [API keys](/api-keys) for how to create and rotate keys.
+  </Accordion>
+
+  <Accordion title="Can I use ModelRunner directly from the browser?">
+    Not with your API key — it would be exposed to end users. Use the server-proxy pattern shown in the [JavaScript client guide](/clients/js-client#using-the-client-in-browsers-via-proxy): your server keeps the key, and the browser routes requests through `/api/modelrunner/proxy`.
+  </Accordion>
+
+  <Accordion title="Can my AI assistant call ModelRunner directly?">
+    Yes — connect the [MCP server](/guides/mcp-server). Claude Desktop, Claude Code, and Cursor support it out of the box.
+  </Accordion>
+</AccordionGroup>
+
+## Billing & limits
+
+<AccordionGroup>
+  <Accordion title="How is billing calculated?">
+    Models price per request, per second of GPU time, or per output (depending on the model). The price is settled when a request reaches `COMPLETED`. Failed and cancelled requests are not billed.
+  </Accordion>
+
+  <Accordion title="Do I pay if a request fails?">
+    No. A request that transitions to `FAILED` or `CANCELLED` is not charged. A request whose output failed schema validation (`422`) is also not charged — you see the upstream error and the balance is unaffected.
+  </Accordion>
+
+  <Accordion title="What happens when I run out of credits?">
+    Submitting a new request returns HTTP `402 Insufficient Balance`. Top up credits and retry the request — no other action is needed.
+  </Accordion>
+
+  <Accordion title="Are there rate limits?">
+    There are no per-second request limits today. Submit as many concurrent requests as you like — they queue and process as provider capacity allows. If a provider returns `429`, the API passes it through so your client can back off.
+  </Accordion>
+</AccordionGroup>
+
+## Files & inputs
+
+<AccordionGroup>
+  <Accordion title="What file types can I upload?">
+    Any binary type. ModelRunner storage accepts whatever `content_type` you declare on the upload — what matters is whether the **target model** accepts that type. Common types include `image/png`, `image/jpeg`, `image/webp`, `video/mp4`, `video/webm`, `audio/mpeg`, `audio/wav`, `application/pdf`.
+  </Accordion>
+
+  <Accordion title="What's the largest file I can upload?">
+    Single-part uploads work up to S3's ~5 GB per-PUT limit. For anything larger, or when you need resumability, use the [multipart upload flow](/guides/file-uploads#multipart-upload-large-files). The MCP server's `upload_file` tool caps inline payloads at 200 MiB — larger files should use the direct multipart endpoints.
+  </Accordion>
+
+  <Accordion title="How long are uploaded files retained?">
+    Uploaded files and model outputs are kept indefinitely under your account. You can list and delete them via the files API (`GET /files`, `DELETE /files/:id`).
+  </Accordion>
+</AccordionGroup>
+
+## Requests & lifecycle
+
+<AccordionGroup>
+  <Accordion title="Does ModelRunner support webhooks?">
+    Not yet. Use the [Server-Sent Events stream](/guides/request-lifecycle#three-ways-to-watch-a-request) (`GET /requests/stream`) for push-style updates without polling, or poll `status_url` directly. Webhook delivery is on the roadmap.
+  </Accordion>
+
+  <Accordion title="What's my position in the queue?">
+    The `queue_position` field in status responses is currently always `0` — real queue depth is not tracked yet. Use the SSE stream to receive updates the moment your request transitions.
+  </Accordion>
+
+  <Accordion title="How long can a request stay in flight?">
+    Up to 6 hours and 5 finalization attempts. Beyond that the platform force-fails the request. See [request lifecycle](/guides/request-lifecycle#platform-safety-net-automatic-finalization).
+  </Accordion>
+
+  <Accordion title="Can I cancel a running request?">
+    `GET` the `cancel_url` returned when you created the request. Cancellation is immediate if the provider hasn't started; best-effort otherwise. See [request lifecycle](/guides/request-lifecycle#cancellation).
+  </Accordion>
+
+  <Accordion title="What happens if my client crashes mid-request?">
+    Nothing is lost. The platform's background finalization sweep will still complete the request and settle billing. Retrieve it later with `GET /requests/{requestId}` or list your history.
+  </Accordion>
+</AccordionGroup>
+
+## Errors
+
+<AccordionGroup>
+  <Accordion title="What does `422` mean on a result fetch?">
+    The provider returned output that didn't match the model's declared schema, or the provider failed after the request was already billing-normalized. Read `error` for the human-readable failure and `details.validationErrors` for per-field issues. You are not billed. See [errors](/api-reference/errors#422-schema-validation-failure).
+  </Accordion>
+
+  <Accordion title="Which errors are safe to retry?">
+    Only `429` (with backoff) and transient `5xx`. Treat `400`, `401`, `402`, `403`, `404`, and `422` as deterministic failures — retrying with the same input will produce the same error.
+  </Accordion>
+</AccordionGroup>

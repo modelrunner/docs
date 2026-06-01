@@ -20,7 +20,26 @@
             "group": "Getting started",
             "pages": [
               "index",
-              "api-keys"
+              "api-keys",
+              "faq"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "guides/request-lifecycle"
+            ]
+          },
+          {
+            "group": "Storage",
+            "pages": [
+              "guides/file-uploads"
+            ]
+          },
+          {
+            "group": "MCP",
+            "pages": [
+              "guides/mcp-server"
             ]
           },
           {
@@ -47,7 +66,8 @@
           {
             "group": "API documentation",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/introduction",
+              "api-reference/errors"
             ]
           }
         ]

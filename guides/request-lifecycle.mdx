@@ -1,0 +1,97 @@
+---
+title: "Request lifecycle"
+description: "How an inference request moves from submission to terminal state, and the platform guarantees around finalization."
+icon: "rotate"
+---
+
+## States
+
+Every request progresses through one of these statuses:
+
+```text
+IN_QUEUE  ──►  IN_PROGRESS  ──►  COMPLETED
+                            ──►  FAILED
+                            ──►  CANCELLED
+```
+
+| Status        | Meaning                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| `IN_QUEUE`    | The request is accepted and waiting for the provider to start processing.                              |
+| `IN_PROGRESS` | The provider is actively generating output.                                                            |
+| `COMPLETED`   | Output is available at `response_url`. Billing has been settled.                                       |
+| `FAILED`      | The provider returned an error or the request was force-failed. Not billed.                            |
+| `CANCELLED`   | You called `cancel_url` (or the platform cancelled before any work was done). Not billed.              |
+
+`COMPLETED`, `FAILED`, and `CANCELLED` are **terminal** — the request will never transition away from them.
+
+## Submitting a request
+
+```bash
+POST /{ownerName}/{modelName}
+Authorization: Key $MODELRUNNER_KEY
+Content-Type: application/json
+
+{ "prompt": "two friends cooking together" }
+```
+
+The response returns immediately with `request_id`, `status: "IN_QUEUE"`, and three URLs:
+
+| URL            | Use                                                                          |
+| -------------- | ---------------------------------------------------------------------------- |
+| `status_url`   | Poll for status transitions (or skip polling — see below).                   |
+| `response_url` | `GET` once status is `COMPLETED` to retrieve the validated output.           |
+| `cancel_url`   | `GET` (yes, GET) to attempt cancellation. Returns the current status.        |
+
+## Three ways to watch a request
+
+<AccordionGroup>
+  <Accordion title="1. Server-Sent Events (recommended)">
+    Open one connection to `GET /requests/stream` and receive push updates for every in-flight request the user owns. On connect, the server emits a `snapshot` event with current state; thereafter each status transition emits an `update` event. A `: hb` SSE comment is sent every 25 seconds to keep the connection alive — your client can ignore it.
+
+    This eliminates the polling loop entirely. Best for dashboards, multi-request UIs, and any client that opens multiple requests in parallel.
+  </Accordion>
+
+  <Accordion title="2. Webhooks">
+    Not currently supported. If your use case requires server-to-server delivery without a long-lived connection, use the SSE stream (above) or polling (below) — webhook delivery is on the roadmap.
+  </Accordion>
+
+  <Accordion title="3. Polling">
+    `GET /{ownerName}/{modelName}/requests/{requestId}/status` returns the same response shape as the create call. Poll at 1–2 second intervals. The SDK helpers (`subscribe` in JS, `submit_async` + `iter_events` in Python) wrap this loop for you.
+
+    <Warning>
+      The `queue_position` field is currently always `0` — real queue depth is not tracked. Don't surface it as "you're #N in line" in your UI.
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+## Cancellation
+
+`GET /{ownerName}/{modelName}/requests/{requestId}/cancel` attempts to cancel an in-queue or in-progress request and returns the current status payload.
+
+- If the provider hasn't started yet, the request transitions directly to `CANCELLED`. You are not billed.
+- If the provider is already running, cancellation is best-effort — the request may still reach `COMPLETED`. Always check the returned status before assuming the work stopped.
+
+## Platform safety net: automatic finalization
+
+You do not need to implement retry logic for requests you've abandoned. A background sweep runs every **60 seconds** and re-checks every request that is:
+
+- Still `IN_PROGRESS` past the provider's expected duration, or
+- Marked `COMPLETED` by the provider but missing output media (media upload still in flight).
+
+The sweep advances each row through its terminal state automatically (uploads media to S3, generates thumbnails, charges billing on success, or marks failed otherwise).
+
+A request that has been retried **5 times** and is older than **6 hours** is force-failed. After that point its status is permanently `FAILED` and any associated billing is reverted.
+
+<Tip>
+  Concretely: if your client crashes between submitting a request and polling for its result, the platform will still finalize the request correctly. You can retrieve it later with `GET /requests/{requestId}` (no model path required) or via [`list_my_requests`](/api-reference/list-requests).
+</Tip>
+
+## Billing tie-in
+
+Billing settles on the same lifecycle:
+
+- A request transitioning to `COMPLETED` charges the user's balance.
+- A request transitioning to `FAILED` or `CANCELLED` is **not** charged.
+- A request that completed at the provider but failed schema validation is recorded with `billingStatus: "failed"` — you are not billed, but the call returns `422` so you can surface the upstream error.
+
+See [errors](/api-reference/errors) for the `422` payload shape.
