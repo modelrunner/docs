@@ -45,25 +45,7 @@ Get your credentials from your ModelRunner account. Keep them server-only and ou
 
 ## Call a model
 
-The client offers both synchronous and asynchronous APIs. Pick whichever fits your codebase — they call the same underlying endpoints.
-
-### Sync — `run()`
-
-`run()` blocks until the request reaches a terminal state and returns the final result. Ideal for scripts, notebooks, and one-shot CLI tools.
-
-```python
-import modelrunner_ai
-
-result = modelrunner_ai.run(
-    "bytedance/sdxl-lightning-4step",
-    arguments={"prompt": "two friends cooking together"},
-)
-print(result["output"])
-```
-
-### Async — `submit_async()` + `iter_events()`
-
-`submit_async()` returns immediately with a response handle. Iterate `response.iter_events()` to react to each status transition, then `await response.get()` for the final output. Best for servers, queue workers, and any code that needs to surface intermediate progress.
+Leverage the queue for long-running tasks. Optionally listen to queue updates.
 
 ```python
 import asyncio
@@ -78,7 +60,7 @@ async def main():
     logs_index = 0
     async for event in response.iter_events(with_logs=True):
         if isinstance(event, modelrunner_ai.Queued):
-            print("Queued.")
+            print("Queued. Position:", event.position)
         elif isinstance(event, (modelrunner_ai.InProgress, modelrunner_ai.Completed)):
             new_logs = event.logs[logs_index:]
             for log in new_logs:
@@ -90,33 +72,6 @@ async def main():
 
 asyncio.run(main())
 ```
-
-### Event types
-
-`iter_events()` yields one event per status transition:
-
-| Event         | When it fires                                                    | Has `logs`? |
-| ------------- | ---------------------------------------------------------------- | ----------- |
-| `Queued`      | Request accepted, waiting for the provider.                      | no          |
-| `InProgress`  | Provider is generating output.                                   | yes         |
-| `Completed`   | Terminal — output available on the response handle.              | yes         |
-| `Failed`      | Terminal — provider error or force-failed. Not billed.           | yes         |
-
-### Cancelling a request
-
-Every async response handle exposes the underlying `cancel_url`. Issue a GET to it from your HTTP client of choice:
-
-```python
-import httpx
-import os
-
-httpx.get(
-    response.cancel_url,
-    headers={"Authorization": f"Key {os.environ['MODELRUNNER_KEY']}"},
-)
-```
-
-Cancellation is immediate if the provider hasn't started; best-effort otherwise. See [request lifecycle](/guides/request-lifecycle#cancellation).
 
 ## Upload files
 

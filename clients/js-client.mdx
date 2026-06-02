@@ -49,9 +49,7 @@ Get your credentials from your ModelRunner account. Keep them server-only.
 
 ## Call a model
 
-The client offers two patterns: a blocking `subscribe()` that resolves when the request reaches a terminal state, and a non-blocking `run()` that returns immediately with a `request_id` you can poll or watch via the [SSE stream](/guides/request-lifecycle#three-ways-to-watch-a-request).
-
-### `subscribe()` — wait for completion
+Leverage the queue for long-running tasks. Optionally listen to queue updates.
 
 ```ts
 import { modelrunner } from "@modelrunner/client";
@@ -60,50 +58,13 @@ const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
   input: { "prompt": "two friends cooking together" },
   onQueueUpdate(update) {
     if (update.status === "IN_QUEUE") {
-      console.log(`Status: ${update.status}`);
+      console.log(`Position in queue: ${update.position}`);
     }
   },
 });
 
 console.log(result.output);
 ```
-
-### `run()` — submit and return immediately
-
-Use when you want to display intermediate UI, fan out many requests in parallel, or hand the request id off to a background worker.
-
-```ts
-const { request_id, status_url, cancel_url } = await modelrunner.run(
-  "bytedance/sdxl-lightning-4step",
-  { input: { prompt: "two friends cooking together" } }
-);
-
-// Poll status_url, open the SSE stream, or store request_id and check later.
-```
-
-### Cancelling a request
-
-Every request response includes a `cancel_url`. `GET` it to attempt cancellation — the platform returns the current status payload. Cancellation is immediate if the provider hasn't started; best-effort otherwise.
-
-```ts
-await fetch(cancel_url, {
-  headers: { Authorization: `Key ${process.env.MODELRUNNER_KEY}` },
-});
-```
-
-### Status transitions
-
-`onQueueUpdate` (and the SSE stream) fire on every status transition. The full set:
-
-| Status         | Meaning                                                    |
-| -------------- | ---------------------------------------------------------- |
-| `IN_QUEUE`     | Accepted, waiting for the provider to start.               |
-| `IN_PROGRESS`  | Provider is generating output.                             |
-| `COMPLETED`    | Output is available on `response_url`.                     |
-| `FAILED`       | Provider error or force-failed. Not billed.                |
-| `CANCELLED`    | You cancelled it. Not billed.                              |
-
-See [request lifecycle](/guides/request-lifecycle) for the full state machine and [errors](/api-reference/errors) for the `4xx` / `5xx` shapes the client surfaces on rejection.
 
 
 
