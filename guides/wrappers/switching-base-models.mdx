@@ -20,17 +20,17 @@ A wrapper can sit on top of **more than one base model**. Callers keep using the
 </Step>
 
 <Step title="Callers can override with `base_model`">
-  To target a non-default model, the caller sends a top-level `base_model` field in the request body containing that model's **id** — the UUID `get_wrapper` lists for each of the wrapper's base models (not the model's `ownerName/alias` endpoint):
+  To target a non-default model, the caller sends a top-level `base_model` field in the request body set to that model's **endpoint** — its `ownerName/alias`, the same identifier you'd use to call the model directly:
 
   ```bash
   POST /{ownerName}/{alias}
   Authorization: Key $MODELRUNNER_KEY
   Content-Type: application/json
 
-  { "subject": "a fox in a trench coat", "mood": "noir", "base_model": "<model-uuid>" }
+  { "subject": "a fox in a trench coat", "mood": "noir", "base_model": "fal/flux-dev" }
   ```
 
-  `base_model` is **honored only when the wrapper has more than one base model**, and the id must be one of the wrapper's own base models — otherwise the request is rejected. For a single-model wrapper it's ignored.
+  `base_model` is **honored only when the wrapper has more than one base model**, and the endpoint must be one of the wrapper's own base models — otherwise the request is rejected. For a single-model wrapper it's ignored.
 </Step>
 
 <Step title="Per-model mappings adapt the same input">
@@ -70,6 +70,10 @@ Two models rarely name their inputs identically. Say you extend the [cinematic-p
 ```
 
 Same `{ subject, mood }` input, two different downstream payloads — resolved per model. The full set of mapping operations (`collectFields`, `staticValues`, `presets`, `renames`, `omit`) and the order they run in is covered in [build a wrapper](/guides/wrappers/authoring#choosing-what-to-expose).
+
+<Note>
+  Two identifiers, two contexts: when **authoring** a wrapper you reference each base model by its `baseModelId` (the model's id), as in the payload above. When **calling** the wrapper, the runtime `base_model` override is the model's `ownerName/alias` **endpoint** — the same string you'd use to call that model directly.
+</Note>
 
 ## Rules for multi-model wrappers
 
