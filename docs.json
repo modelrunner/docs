@@ -21,13 +21,8 @@
             "pages": [
               "index",
               "api-keys",
+              "guides/request-lifecycle",
               "faq"
-            ]
-          },
-          {
-            "group": "Concepts",
-            "pages": [
-              "guides/request-lifecycle"
             ]
           },
           {
@@ -40,27 +35,17 @@
             ]
           },
           {
-            "group": "Storage",
+            "group": "Platform features",
             "pages": [
-              "guides/file-uploads"
-            ]
-          },
-          {
-            "group": "MCP",
-            "pages": [
+              "guides/file-uploads",
               "guides/mcp-server"
             ]
           },
           {
-            "group": "SDKs",
+            "group": "SDKs & recipes",
             "pages": [
               "clients/js-client",
-              "clients/python-client"
-            ]
-          },
-          {
-            "group": "Recipes",
-            "pages": [
+              "clients/python-client",
               "recipes-nextjs-app"
             ]
           }
