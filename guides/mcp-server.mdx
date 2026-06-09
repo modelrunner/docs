@@ -89,7 +89,7 @@ Connection uses **OAuth 2.1** with Dynamic Client Registration ([RFC 7591](https
 
 ## Tools
 
-The server exposes 13 tools, grouped by what they do.
+The server exposes 18 tools, grouped by what they do.
 
 ### Discovery
 
@@ -121,6 +121,22 @@ The server exposes 13 tools, grouped by what they do.
 
 <Tip>
   Local filesystem paths are **not** accepted by `upload_file` — the MCP server is remote. Pass `base64` bytes for files on your machine, or a `url` to re-host remote media.
+</Tip>
+
+### Authoring wrappers
+
+These tools let your assistant build and manage [wrappers](/guides/wrappers/overview) — your own products composed on top of base models.
+
+| Tool                      | Purpose                                                                                                          |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `wrapper_authoring_guide` | Returns the canonical authoring rulebook. The assistant reads this before drafting a wrapper.                    |
+| `preview_wrapper`         | Dry-run a wrapper's prompt template + field mappings against a sample input. Creates nothing.                    |
+| `create_wrapper`          | Create a wrapper you own. Defaults to `visibility: private`, `status: draft`. Ownership and pricing are derived. |
+| `patch_wrapper`           | Update one of your wrappers by `id`.                                                                             |
+| `delete_wrapper`          | Delete one of your wrappers.                                                                                     |
+
+<Tip>
+  See [Build a wrapper](/guides/wrappers/authoring) for a full worked example of this flow — from reading a base model's schema to publishing a live endpoint.
 </Tip>
 
 ## Typical assistant flow

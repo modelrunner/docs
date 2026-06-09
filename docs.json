@@ -31,6 +31,15 @@
             ]
           },
           {
+            "group": "Wrappers",
+            "pages": [
+              "guides/wrappers/overview",
+              "guides/wrappers/authoring",
+              "guides/wrappers/prompt-templates",
+              "guides/wrappers/switching-base-models"
+            ]
+          },
+          {
             "group": "Storage",
             "pages": [
               "guides/file-uploads"

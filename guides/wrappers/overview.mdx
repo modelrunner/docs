@@ -1,0 +1,104 @@
+---
+title: "Wrappers"
+description: "Turn a raw model into a purpose-built product — your own inputs, a baked-in prompt recipe, and your own pricing — callable at a single endpoint."
+icon: "wand-magic-sparkles"
+---
+
+## What a wrapper is
+
+A **model** is a raw capability: it takes whatever inputs the provider exposes and returns a result. A **wrapper** is the product you build on top of one (or more) of those models. It gives the model:
+
+- a **custom input schema** — the small set of fields *your* users actually fill in,
+- a **prompt template** — a fixed recipe that turns those fields into the prompt the base model sees,
+- **field mappings** — rules that reshape your inputs into each base model's native schema,
+- and **markup pricing** — your price on top of the base model's cost.
+
+The result is callable at the exact same kind of endpoint as a model — `ownerName/alias` — so anything that can call a ModelRunner model can call a wrapper with no extra work.
+
+<Note>
+  Think of a model as an engine and a wrapper as the car you ship around it. Wrappers are ModelRunner's **product-composition layer**: the same handful of base models can back dozens of distinct, opinionated products.
+</Note>
+
+## Why build one
+
+<Columns cols={2}>
+  <Card title="Make it foolproof" icon="wand-magic-sparkles">
+    Expose two friendly fields (`subject`, `mood`) instead of the base model's fifteen raw parameters. Bake the good defaults in so every call looks professional.
+  </Card>
+  <Card title="Ship a house style" icon="palette">
+    Enforce a look — "cinematic portrait", "isometric game asset", "corporate headshot" — through the prompt template. Callers pick the subject; your recipe does the rest.
+  </Card>
+  <Card title="Combine inputs" icon="layer-group">
+    Collect several inputs into the shape a model wants — e.g. a person photo plus two garment images merged into one `image_urls` array for a virtual try-on.
+  </Card>
+  <Card title="Stay model-agnostic" icon="shuffle">
+    Put one stable interface in front of several base models. Swap or A/B the underlying model — or offer speed/quality tiers — without your callers changing a line. See [switching base models](/guides/wrappers/switching-base-models).
+  </Card>
+  <Card title="Resell with markup" icon="circle-dollar-to-slot">
+    Apply a percentage markup over the base model's price. Your wrapper bills at the marked-up rate; the difference is yours.
+  </Card>
+  <Card title="Curate a catalog" icon="grid-2">
+    Group base models into named, described, thumbnailed products with example outputs — a catalog your users browse instead of raw model parameters.
+  </Card>
+</Columns>
+
+## Anatomy of a wrapper
+
+```text
+        caller's input                wrapper                       base model
+   ┌──────────────────────┐    ┌────────────────────────┐    ┌────────────────────┐
+   │ subject: "a fox"      │    │ 1. prompt template  ───┼──► │ prompt: "a fox,    │
+   │ mood:    "noir"       │──► │ 2. field mappings      │    │   high-contrast…"  │
+   │ (base_model?)         │    │ 3. markup applied      │    │ num_outputs: 1     │
+   └──────────────────────┘    └────────────────────────┘    └────────────────────┘
+```
+
+| Part | What it does | Where to read more |
+| ---- | ------------ | ------------------ |
+| **Input schema** | The user-facing fields your wrapper accepts (OpenAPI-style JSON Schema). | [Build a wrapper](/guides/wrappers/authoring) |
+| **Prompt template** | Handlebars recipe that builds the base model's prompt from those fields. | [Prompt templates](/guides/wrappers/prompt-templates) |
+| **Base model(s)** | One or more existing models the wrapper runs on. | [Switching base models](/guides/wrappers/switching-base-models) |
+| **Field mappings** | Per-model rules (`collectFields`, `staticValues`, `presets`, `renames`, `omit`) that adapt your input to each model's schema. | [Build a wrapper](/guides/wrappers/authoring) |
+| **Markup** | A percentage uplift over the base model's price. Server-owned. | Below |
+
+## Calling a wrapper
+
+A wrapper is called **exactly like a model** — same endpoint format, same request lifecycle, same status URLs. The body is just your wrapper's input fields:
+
+```bash
+POST /{ownerName}/{alias}
+Authorization: Key $MODELRUNNER_KEY
+Content-Type: application/json
+
+{ "subject": "a fox in a trench coat", "mood": "noir" }
+```
+
+Everything in [request lifecycle](/guides/request-lifecycle) applies unchanged — polling, the SSE stream, cancellation, and automatic finalization all work the same way for wrapper requests.
+
+<Tip>
+  Callers don't write the base model's prompt or its raw parameters — they only fill in the fields your schema defines. The wrapper turns those into the full base-model payload server-side.
+</Tip>
+
+## Pricing
+
+A wrapper bills at the base model's price **plus your markup**. If a base model costs `$0.10` per output and the wrapper's markup is `20%`, each call settles at `$0.12`. Markup is applied at request time and snapshotted onto the request, so billing is self-contained and unaffected by later price changes.
+
+Markup is **server-owned** — you set it from the wrapper studio (or it's configured by ModelRunner), not in the create payload. New wrappers start at `0%`.
+
+## Discovering wrappers
+
+Wrappers live in the same catalog as models. From an AI assistant connected to the [MCP server](/guides/mcp-server), `list_wrappers`, `recommended_wrappers`, and `get_wrapper` browse and inspect them; `search` spans both models and wrappers in one call.
+
+## Next steps
+
+<Columns cols={3}>
+  <Card title="Build a wrapper" icon="hammer" href="/guides/wrappers/authoring">
+    A full worked example, end to end, from your AI assistant.
+  </Card>
+  <Card title="Prompt templates" icon="code" href="/guides/wrappers/prompt-templates">
+    Handlebars helpers, lookup maps, and the rules to follow.
+  </Card>
+  <Card title="Switching base models" icon="shuffle" href="/guides/wrappers/switching-base-models">
+    One wrapper, many models — and letting callers choose.
+  </Card>
+</Columns>

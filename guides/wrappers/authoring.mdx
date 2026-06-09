@@ -1,0 +1,198 @@
+---
+title: "Build a wrapper"
+description: "Design, preview, and publish a wrapper end to end — guided by your AI assistant over the MCP server."
+icon: "hammer"
+---
+
+The fastest way to build a wrapper is to let an AI assistant do it for you. Connect the [MCP server](/guides/mcp-server) and ask — the assistant has tools to read the base model, draft your wrapper, dry-run the transform, and publish it, all from chat. This page walks one wrapper from idea to live endpoint.
+
+<Note>
+  You can also build wrappers in the **web wrapper studio** — a point-and-click form on [modelrunner.ai](https://modelrunner.ai) with the same fields as below and a live preview. It's the friendliest path for non-developers; the AI-assistant flow here is the most reproducible and is what this guide teaches. (The studio UI evolves, so we keep its walkthrough short — the underlying concepts are identical.)
+</Note>
+
+## The tools your assistant uses
+
+Once the MCP server is connected, these wrapper tools are available:
+
+| Tool | What it does |
+| ---- | ------------ |
+| `wrapper_authoring_guide` | Returns the canonical authoring rulebook. Your assistant reads this before drafting. |
+| `get_wrapper` / `list_wrappers` / `recommended_wrappers` | Inspect existing wrappers for reference. |
+| `get_model` / `get_model_raw_schema` | Read the **base model's** input fields — you need these to write field mappings. |
+| `preview_wrapper` | Dry-run the prompt template + mappings against a sample input. No wrapper is created. |
+| `create_wrapper` | Create a wrapper you own. Defaults to `visibility: private`, `status: draft`. |
+| `patch_wrapper` / `delete_wrapper` | Update or remove one of your wrappers. |
+
+<Tip>
+  You never paste `ownerName` or pricing into these tools. Ownership is derived from your authenticated identity, and markup is server-owned. The assistant only authors the *design* of the wrapper.
+</Tip>
+
+## Worked example: a "cinematic portrait" generator
+
+We'll build a text-to-image wrapper that takes a **subject** and a **mood**, and turns them into a polished cinematic prompt for an image model. Caller-facing, it's two fields. Behind the scenes, it bakes in lighting language, locks the output format, and applies a fixed quality.
+
+<Steps>
+<Step title="Pick a base model and read its inputs">
+  Ask your assistant for a base model, then inspect its schema:
+
+  ```text
+  "Find a good text-to-image model and show me its input fields."
+  → recommended_models(category="image")  → bytedance/sdxl-lightning-4step
+  → get_model(endpoint="bytedance/sdxl-lightning-4step")
+  ```
+
+  You're looking for the field names the model accepts — e.g. `prompt`, `num_outputs`, `output_format`. Your field mappings have to produce exactly those keys, so this step is not optional.
+
+  <Warning>
+    If you write mappings without knowing the base model's real input properties, create will reject keys the model doesn't accept. Always read the base model first.
+  </Warning>
+</Step>
+
+<Step title="Let the assistant load the authoring guide">
+  ```text
+  "Read the wrapper authoring guide, then design this wrapper."
+  → wrapper_authoring_guide()
+  ```
+
+  This gives the assistant the rules for valid schemas, templates, and mappings — so the draft it produces will pass validation.
+</Step>
+
+<Step title="Design the wrapper">
+  The assistant proposes a wrapper definition. For our example it looks like this:
+
+  ```json
+  {
+    "alias": "cinematic-portrait",
+    "name": "Cinematic Portrait",
+    "category": "text-to-image",
+    "shortDescription": "Studio-grade cinematic portraits from a subject and a mood.",
+    "description": "Type a subject and pick a mood. We handle the lighting, composition, and quality.",
+    "thumbnailUrl": "https://media.modelrunner.ai/a50ZZtkEMuPgLdAYMrYpF.jpeg",
+    "inputModalities": ["text"],
+    "outputModalities": ["image"],
+    "schema": {
+      "components": {
+        "schemas": {
+          "Input": {
+            "type": "object",
+            "required": ["subject"],
+            "properties": {
+              "subject": {
+                "type": "string",
+                "description": "Who or what to portray, e.g. 'a fox in a trench coat'."
+              },
+              "mood": {
+                "type": "string",
+                "enum": ["warm", "moody", "noir"],
+                "default": "warm",
+                "description": "Lighting and tone of the portrait."
+              }
+            }
+          }
+        }
+      }
+    },
+    "promptTemplate": "{{subject}}, {{lookup maps.mood mood}}, cinematic portrait, shallow depth of field, 85mm",
+    "templateContext": {
+      "maps": {
+        "mood": {
+          "warm": "golden-hour warmth, soft rim light",
+          "moody": "low-key lighting, deep shadows",
+          "noir": "high-contrast black and white, dramatic shadows"
+        }
+      },
+      "constants": {}
+    },
+    "defaultBaseModelId": "<base-model-uuid>",
+    "baseModels": [
+      {
+        "baseModelId": "<base-model-uuid>",
+        "fieldMappings": {
+          "staticValues": { "num_outputs": 1, "output_format": "png" },
+          "omit": ["mood"]
+        }
+      }
+    ],
+    "visibility": "private",
+    "status": "draft"
+  }
+  ```
+
+  Three design moves are worth noting:
+
+  - **`subject` and `mood` are the only fields the caller sees.** Everything else — quality, count, format — is decided for them.
+  - **The template** rewrites `mood` into rich lighting language via a [lookup map](/guides/wrappers/prompt-templates), then assembles the final `prompt`.
+  - **The mappings** force `num_outputs` and `output_format` with `staticValues`, and `omit` the now-consumed `mood` field so it never reaches the base model.
+</Step>
+
+<Step title="Preview the transformation">
+  Before creating anything, dry-run it:
+
+  ```text
+  → preview_wrapper(
+      promptTemplate, templateContext,
+      sampleInput = { "subject": "a fox in a trench coat", "mood": "noir" },
+      fieldMappings (optional)
+    )
+  ```
+
+  The preview shows the rendered prompt and the final base-model input:
+
+  ```json
+  {
+    "prompt": "a fox in a trench coat, high-contrast black and white, dramatic shadows, cinematic portrait, shallow depth of field, 85mm",
+    "num_outputs": 1,
+    "output_format": "png"
+  }
+  ```
+
+  <Note>
+    Preview validates *rendering* — the template, presets, renames, and omits. It does **not** guarantee every produced key is accepted by the base model; that's checked when you create. Treat preview as your fast feedback loop, not the final word.
+  </Note>
+</Step>
+
+<Step title="Create it">
+  ```text
+  "Looks right — create it."
+  → create_wrapper({ ...the design above })
+  ```
+
+  The wrapper is created **private** and in **draft**. It's now callable by you at `yourname/cinematic-portrait` for testing.
+</Step>
+
+<Step title="Test, iterate, publish">
+  Call your wrapper like any model (see [calling a wrapper](/guides/wrappers/overview#calling-a-wrapper)), refine with `patch_wrapper`, then flip `visibility` to `public` and `status` to `published` when it's ready:
+
+  ```text
+  → patch_wrapper(id, { visibility: "public", status: "published" })
+  ```
+</Step>
+</Steps>
+
+## Choosing what to expose
+
+The wrapper schema is your **public contract** — keep it small and stable. A useful rule of thumb when deciding where each setting goes:
+
+| Question | Goes in |
+| -------- | ------- |
+| Should the **user** control it? | The `schema` (exposed input field) |
+| Should it be **fixed and hidden**? | `fieldMappings.staticValues` |
+| Is it **derived** from other inputs? | The `promptTemplate` |
+| Does it just need a **name change** for the model? | `fieldMappings.renames` |
+| Should one friendly choice **expand** into several model fields? | `fieldMappings.presets` |
+| Is it a helper field that **shouldn't reach** the model? | `fieldMappings.omit` |
+
+<Warning>
+  Never put `base_model` in your schema — it's a platform-level selector the caller sends separately (see [switching base models](/guides/wrappers/switching-base-models)). And don't expose raw provider-only fields unless they're genuinely part of the experience you're designing.
+</Warning>
+
+## Where to go next
+
+<Columns cols={2}>
+  <Card title="Prompt templates" icon="code" href="/guides/wrappers/prompt-templates">
+    The full set of Handlebars helpers, lookup maps, and constraints.
+  </Card>
+  <Card title="Switching base models" icon="shuffle" href="/guides/wrappers/switching-base-models">
+    Add a second model and let callers choose at request time.
+  </Card>
+</Columns>

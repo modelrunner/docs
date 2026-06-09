@@ -1,0 +1,106 @@
+---
+title: "Prompt templates"
+description: "The Handlebars template that turns your wrapper's inputs into the prompt the base model receives — variables, lookup maps, helpers, and the rules to follow."
+icon: "code"
+---
+
+A wrapper's `promptTemplate` is a [Handlebars](https://handlebarsjs.com) string. At request time it's evaluated against the caller's input, and the result becomes the `prompt` sent to the base model. This is where a wrapper earns its keep: callers type a few plain fields, and your template assembles them into a consistent, well-engineered prompt.
+
+```text
+{{subject}}, {{lookup maps.mood mood}}, cinematic portrait, shallow depth of field
+```
+
+Given `{ "subject": "a fox", "mood": "noir" }`, this renders:
+
+```text
+a fox, high-contrast black and white, dramatic shadows, cinematic portrait, shallow depth of field
+```
+
+## What's available in the template
+
+| Reference | Resolves to |
+| --------- | ----------- |
+| `{{fieldName}}` | Any field from the caller's input — every input property is a top-level variable. |
+| `maps` | Your `templateContext.maps` — reusable lookup tables. |
+| `constants` | Your `templateContext.constants` — static strings reused across renders. |
+
+A few behaviors to keep in mind:
+
+- **Missing variables render empty.** A reference to a field the caller didn't send produces an empty string, not an error. Design templates that read cleanly when optional fields are absent.
+- **Output is not HTML-escaped** (`noEscape` is on). Quotes, ampersands, and angle brackets pass through verbatim — exactly what you want for a prompt string.
+- **Templates are capped at 50&nbsp;KB.** More than enough for a prompt recipe; if you're approaching it, move data into `templateContext.maps`.
+
+## Helpers
+
+Only these five helpers are available. Anything else is unsupported.
+
+| Helper | Signature | Returns |
+| ------ | --------- | ------- |
+| `lookup` | `{{lookup maps.group key}}` | The value at `group[key]`, or empty if absent. Safe against prototype keys. |
+| `eq` | `{{#if (eq a b)}}…{{/if}}` | `true` when `a === b`. |
+| `and` | `{{#if (and x y)}}…{{/if}}` | `true` when **every** argument is truthy. |
+| `or` | `{{#if (or x y)}}…{{/if}}` | `true` when **any** argument is truthy. |
+| `exists` | `{{#if (exists field)}}…{{/if}}` | `true` when the value is not `null` and not an empty string. |
+
+### Conditionals
+
+Combine helpers with Handlebars' built-in `#if` to branch:
+
+```text
+A portrait of {{subject}}{{#if (exists outfit)}} wearing {{outfit}}{{/if}}.
+{{#if (eq mood "noir")}}Shot on black-and-white film.{{/if}}
+{{#if (and lighting (or (eq style "studio") (eq style "editorial")))}}{{lighting}} key light.{{/if}}
+```
+
+`exists` is the one to reach for when guarding optional fields — `#if` alone treats an empty string as truthy in some cases, while `exists` correctly skips both `null` and `""`.
+
+## Lookup maps and constants
+
+`templateContext` holds data your template references — keeping the template itself short and readable.
+
+```json
+{
+  "maps": {
+    "mood": {
+      "warm": "golden-hour warmth, soft rim light",
+      "moody": "low-key lighting, deep shadows",
+      "noir": "high-contrast black and white, dramatic shadows"
+    }
+  },
+  "constants": {
+    "negative": "blurry, lowres, watermark"
+  }
+}
+```
+
+Read them in the template with `lookup` (for maps) or a direct reference (for constants):
+
+```text
+{{subject}}, {{lookup maps.mood mood}}. Avoid: {{constants.negative}}.
+```
+
+**Use `maps`** when an enum field should expand into richer phrasing — moods, styles, shot types — especially when the same template structure serves many enum values. **Use `constants`** for static text you repeat, like a negative-prompt suffix. Skip `templateContext` for one-off values that read fine inline.
+
+<Tip>
+  A lookup map is the idiomatic way to translate a small, user-friendly enum (`"noir"`) into a long, model-friendly phrase (`"high-contrast black and white, dramatic shadows"`). Keep the enum in your input schema, keep the phrasing in `maps`.
+</Tip>
+
+## What's not allowed
+
+These Handlebars constructs are **rejected when you create or update the wrapper** — they compile but would silently render empty, so the engine fails loudly instead:
+
+| Construct | Example | Do this instead |
+| --------- | ------- | --------------- |
+| Partials | `{{> shared}}` | Inline the text, or use a `constants` entry. |
+| Inline partials / decorators | `{{#*inline "x"}}…{{/inline}}` | Inline the text directly. |
+| Raw blocks | `{{{{raw}}}}…{{{{/raw}}}}` | Write the literal text without the raw wrapper. |
+
+The common mistake is hardcoding a big lookup table as inline conditionals or a partial. Don't — **put enumerated values in `templateContext.maps`** and read them with `{{lookup maps.group key}}`.
+
+## Test before you ship
+
+Use `preview_wrapper` (from your [AI assistant](/guides/wrappers/authoring), or the studio's live preview) to render the template against a sample input and confirm the prompt looks right — including how it reads when optional fields are omitted. Preview is the fastest way to catch a missing comma, an unmatched `mood` key, or a conditional that fires when it shouldn't.
+
+<Note>
+  The template produces the **prompt string only**. Non-prompt fields the base model needs (counts, sizes, formats) come from your [field mappings](/guides/wrappers/authoring#choosing-what-to-expose), not the template.
+</Note>
