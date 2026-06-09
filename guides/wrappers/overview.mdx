@@ -1,6 +1,6 @@
 ---
 title: "Wrappers"
-description: "Turn a raw model into a purpose-built product — your own inputs, a baked-in prompt recipe, and your own pricing — callable at a single endpoint."
+description: "Turn a raw model into a purpose-built product — your own inputs and a baked-in prompt recipe — callable at a single endpoint."
 icon: "wand-magic-sparkles"
 ---
 
@@ -10,8 +10,7 @@ A **model** is a raw capability: it takes whatever inputs the provider exposes a
 
 - a **custom input schema** — the small set of fields *your* users actually fill in,
 - a **prompt template** — a fixed recipe that turns those fields into the prompt the base model sees,
-- **field mappings** — rules that reshape your inputs into each base model's native schema,
-- and **markup pricing** — your price on top of the base model's cost.
+- and **field mappings** — rules that reshape your inputs into each base model's native schema.
 
 The result is callable at the exact same kind of endpoint as a model — `ownerName/alias` — so anything that can call a ModelRunner model can call a wrapper with no extra work.
 
@@ -34,9 +33,6 @@ The result is callable at the exact same kind of endpoint as a model — `ownerN
   <Card title="Stay model-agnostic" icon="shuffle">
     Put one stable interface in front of several base models. Swap or A/B the underlying model — or offer speed/quality tiers — without your callers changing a line. See [switching base models](/guides/wrappers/switching-base-models).
   </Card>
-  <Card title="Resell with markup" icon="circle-dollar-to-slot">
-    Apply a percentage markup over the base model's price. Your wrapper bills at the marked-up rate; the difference is yours.
-  </Card>
   <Card title="Curate a catalog" icon="grid-2">
     Group base models into named, described, thumbnailed products with example outputs — a catalog your users browse instead of raw model parameters.
   </Card>
@@ -44,14 +40,7 @@ The result is callable at the exact same kind of endpoint as a model — `ownerN
 
 ## Anatomy of a wrapper
 
-```text
-        caller's input                wrapper                       base model
-   ┌──────────────────────┐    ┌────────────────────────┐    ┌────────────────────┐
-   │ subject: "a fox"      │    │ 1. prompt template  ───┼──► │ prompt: "a fox,    │
-   │ mood:    "noir"       │──► │ 2. field mappings      │    │   high-contrast…"  │
-   │ (base_model?)         │    │ 3. markup applied      │    │ num_outputs: 1     │
-   └──────────────────────┘    └────────────────────────┘    └────────────────────┘
-```
+A wrapper is four things layered over a base model. At request time, the caller's input flows through them in order: the prompt template builds the prompt, then the field mappings reshape everything into the exact input the base model expects.
 
 | Part | What it does | Where to read more |
 | ---- | ------------ | ------------------ |
@@ -59,7 +48,6 @@ The result is callable at the exact same kind of endpoint as a model — `ownerN
 | **Prompt template** | Handlebars recipe that builds the base model's prompt from those fields. | [Prompt templates](/guides/wrappers/prompt-templates) |
 | **Base model(s)** | One or more existing models the wrapper runs on. | [Switching base models](/guides/wrappers/switching-base-models) |
 | **Field mappings** | Per-model rules (`collectFields`, `staticValues`, `presets`, `renames`, `omit`) that adapt your input to each model's schema. | [Build a wrapper](/guides/wrappers/authoring) |
-| **Markup** | A percentage uplift over the base model's price. Server-owned. | Below |
 
 ## Calling a wrapper
 
@@ -78,12 +66,6 @@ Everything in [request lifecycle](/guides/request-lifecycle) applies unchanged �
 <Tip>
   Callers don't write the base model's prompt or its raw parameters — they only fill in the fields your schema defines. The wrapper turns those into the full base-model payload server-side.
 </Tip>
-
-## Pricing
-
-A wrapper bills at the base model's price **plus your markup**. If a base model costs `$0.10` per output and the wrapper's markup is `20%`, each call settles at `$0.12`. Markup is applied at request time and snapshotted onto the request, so billing is self-contained and unaffected by later price changes.
-
-Markup is **server-owned** — you set it from the wrapper studio (or it's configured by ModelRunner), not in the create payload. New wrappers start at `0%`.
 
 ## Discovering wrappers
 

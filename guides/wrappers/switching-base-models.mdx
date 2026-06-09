@@ -20,7 +20,7 @@ A wrapper can sit on top of **more than one base model**. Callers keep using the
 </Step>
 
 <Step title="Callers can override with `base_model`">
-  To target a non-default model, the caller sends a top-level `base_model` field in the request body containing that model's id:
+  To target a non-default model, the caller sends a top-level `base_model` field in the request body containing that model's **id** — the UUID `get_wrapper` lists for each of the wrapper's base models (not the model's `ownerName/alias` endpoint):
 
   ```bash
   POST /{ownerName}/{alias}

@@ -4,13 +4,35 @@ description: "Design, preview, and publish a wrapper end to end — guided by yo
 icon: "hammer"
 ---
 
-The fastest way to build a wrapper is to let an AI assistant do it for you. Connect the [MCP server](/guides/mcp-server) and ask — the assistant has tools to read the base model, draft your wrapper, dry-run the transform, and publish it, all from chat. This page walks one wrapper from idea to live endpoint.
+There are two ways to build a wrapper, and both produce the exact same thing:
+
+- **The web wrapper studio** — a visual editor on the ModelRunner site. Best when you want to see your schema, template, and a live preview as you build.
+- **Your AI assistant over MCP** — describe what you want in chat and let the assistant draft, preview, and publish it. Best when you'd rather not hand-build the schema and mappings.
+
+Either way, a wrapper is the same four parts — an input schema, a prompt template, one or more base models, and the field mappings between them. This page covers the studio briefly, then walks a full example with an AI assistant.
+
+## In the web wrapper studio
+
+Sign in and open **Dashboard → Settings → Wrappers** to see the wrappers you own and create new ones. The studio is a guided form — you don't hand-write JSON. It gives you:
+
+- a **visual schema builder** to add input fields with their types, enums, and defaults — no JSON Schema by hand;
+- a **prompt template editor** for the Handlebars recipe;
+- a **base model picker** with a per-model **field-mappings editor** to map your inputs onto each model;
+- a **live preview** that renders your template and the resulting base-model input as you edit;
+- **metadata** — display name, a URL-safe `alias` with a live availability check, category, a Markdown description, a thumbnail, and tags;
+- **visibility** (private / unlisted / public) and **status** (draft / published) controls.
+
+The flow is: add a base model, define your input fields, write the prompt template, map the fields, watch the preview, then save as a draft and publish when it's ready. Everything you create stays listed under the same dashboard, where you can edit or delete it later.
 
 <Note>
-  You can also build wrappers in the **web wrapper studio** — a point-and-click form on [modelrunner.ai](https://modelrunner.ai) with the same fields as below and a live preview. It's the friendliest path for non-developers; the AI-assistant flow here is the most reproducible and is what this guide teaches. (The studio UI evolves, so we keep its walkthrough short — the underlying concepts are identical.)
+  The studio UI evolves, so we don't document it screen by screen — but the concepts are identical to the API-level example below, and the [prompt templates](/guides/wrappers/prompt-templates) and [field mappings](#choosing-what-to-expose) references apply equally to both paths.
 </Note>
 
-## The tools your assistant uses
+## Building with an AI assistant
+
+The rest of this page builds a wrapper end to end from an AI assistant connected to the [MCP server](/guides/mcp-server) — the most reproducible path. The assistant reads the base model, drafts the wrapper, dry-runs the transform, and publishes it, all from chat.
+
+### The tools your assistant uses
 
 Once the MCP server is connected, these wrapper tools are available:
 
@@ -24,7 +46,7 @@ Once the MCP server is connected, these wrapper tools are available:
 | `patch_wrapper` / `delete_wrapper` | Update or remove one of your wrappers. |
 
 <Tip>
-  You never paste `ownerName` or pricing into these tools. Ownership is derived from your authenticated identity, and markup is server-owned. The assistant only authors the *design* of the wrapper.
+  You never paste `ownerName` into these tools — ownership is derived from your authenticated identity. The assistant only authors the *design* of the wrapper.
 </Tip>
 
 ## Worked example: a "cinematic portrait" generator
