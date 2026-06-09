@@ -50,7 +50,38 @@ Connection uses **OAuth 2.1** with Dynamic Client Registration ([RFC 7591](https
 
     Reload Cursor and approve the OAuth prompt.
   </Tab>
+  <Tab title="VS Code (Copilot)">
+    Create `.vscode/mcp.json` in your workspace:
+
+    ```json
+    {
+      "servers": {
+        "modelrunner": {
+          "type": "http",
+          "url": "https://mcp.modelrunner.run/mcp"
+        }
+      }
+    }
+    ```
+
+    Start it from the **Start** action on the server entry (or run **MCP: List Servers**), authorize in the browser, then call the tools from Copilot Chat's **Agent** mode.
+  </Tab>
 </Tabs>
+
+<Tip>
+  Using a client that only speaks local (stdio) servers? Bridge to the remote endpoint with [`mcp-remote`](https://www.npmjs.com/package/mcp-remote):
+
+  ```json
+  {
+    "mcpServers": {
+      "modelrunner": {
+        "command": "npx",
+        "args": ["-y", "mcp-remote", "https://mcp.modelrunner.run/mcp"]
+      }
+    }
+  }
+  ```
+</Tip>
 
 <Check>
   After authorization, ask your assistant "list the recommended image models on ModelRunner" — it should return a curated shortlist via the `recommended_models` tool.
