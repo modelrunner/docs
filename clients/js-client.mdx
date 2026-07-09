@@ -9,7 +9,7 @@ icon: "node-js"
 ModelRunner provides a unified JavaScript/TypeScript SDK to call any supported model with a consistent interface. Use it in Node.js, serverless runtimes, and—via a proxy—in the browser.
 
 <Callout>
-For client-side apps, never expose secrets. Use the proxy pattern shown below to safely forward requests.
+  For client-side apps, never expose secrets. Use the proxy pattern shown below to safely forward requests.
 </Callout>
 
 ## Installation
@@ -43,9 +43,8 @@ modelrunner.config({
 ```
 
 <Tip>
-Get your credentials from your ModelRunner account. Keep them server-only.
+  Get your credentials from your ModelRunner account. Keep them server-only.
 </Tip>
-
 
 ## Call a model
 
@@ -66,7 +65,32 @@ const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
 console.log(result.output);
 ```
 
+## Tag requests with metadata
 
+Attach your own flat string map to a request — job ids, environments, batch labels — by passing `metadata` next to `input`. It's supported on `run`, `subscribe`, `queue.submit`, and `stream`:
+
+```ts
+const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
+  input: { prompt: "two friends cooking together" },
+  metadata: { project: "onboarding-demo", env: "prod" },
+});
+```
+
+`metadata` is sent as a reserved **top-level sibling** of your input fields — never nested inside `input`, and never forwarded to the model. It's stored on the request so you can filter your history by it later; the client itself has no read-back or filtering API, so read tags back through the [request lifecycle metadata filter](/guides/request-lifecycle#tagging-requests-with-metadata) or the MCP `list_my_requests` tool.
+
+The client validates `metadata` before dispatching, mirroring the API:
+
+| Constraint | Value |
+| --- | --- |
+| Max keys | 16 |
+| Key length | 1–64 characters |
+| Values | strings only, ≤512 characters |
+
+A violation throws a `ValidationError` (`"Invalid metadata"`, status `400`) before any request is sent — every offending key is reported at once and is addressable with `error.getFieldErrors("<key>")`. Omitting `metadata` leaves the body untouched; an explicit `{}` is valid and is sent as-is.
+
+<Warning>
+  `metadata` is reserved at the top level of the request body. If a model's own input schema declares a field named `metadata`, sending it this way is rejected by that model's validation — it's treated as a request tag, not model input.
+</Warning>
 
 ## Upload files
 
@@ -94,11 +118,10 @@ const result = await modelrunner.subscribe("swook/inspyrenet", {
 ```
 
 <Tip>
-In Node.js, `Blob` is available in modern runtimes (Node 18+). If you use an older version, consider upgrading or using a compatible polyfill.
+  In Node.js, `Blob` is available in modern runtimes (Node 18\+). If you use an older version, consider upgrading or using a compatible polyfill.
 
-The storage service accepts any binary file type (images, audio, video, documents).
+  The storage service accepts any binary file type (images, audio, video, documents).
 </Tip>
-
 
 ## Using the client in browsers (via proxy)
 
@@ -132,8 +155,5 @@ const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
 </CodeGroup>
 
 <Warning>
-Set `MODELRUNNER_KEY` in your server environment. The proxy reads this value to authenticate requests. Never expose it in the browser.
+  Set `MODELRUNNER_KEY` in your server environment. The proxy reads this value to authenticate requests. Never expose it in the browser.
 </Warning>
-
-
-
