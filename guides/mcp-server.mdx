@@ -6,7 +6,7 @@ icon: "plug"
 
 ## Overview
 
-ModelRunner ships a hosted [Model Context Protocol](https://modelcontextprotocol.io) server that exposes the platform as a set of tools your AI assistant can call directly. Once connected, your assistant can browse models, run inference, upload files, and inspect your request history without ever leaving the chat.
+ModelRunner ships a hosted [Model Context Protocol](https://modelcontextprotocol.io) server that exposes the platform as a set of tools your AI assistant can call directly. Once connected, your assistant can browse models, run inference, upload files, and inspect your request history without ever leaving the chat. For a plain-language overview with FAQs, see the [ModelRunner MCP page](https://modelrunner.ai/mcp); the server is listed in the official MCP registry as `ai.modelrunner/mcp`.
 
 Connection uses **OAuth 2.1** with Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) — clients register themselves on first connect, then prompt you to log in to ModelRunner in your browser. You never paste an API key into the client config.
 
@@ -87,56 +87,101 @@ Connection uses **OAuth 2.1** with Dynamic Client Registration ([RFC 7591](https
   After authorization, ask your assistant "list the recommended image models on ModelRunner" — it should return a curated shortlist via the `recommended_models` tool.
 </Check>
 
+## What you can run
+
+Every public model in the catalog is callable through the same `run_model` tool — one connection covers all of it. Browse live model lists and per-model pricing by capability:
+
+<Columns cols={2}>
+  <Card title="Text-to-Image API" icon="image" href="https://modelrunner.ai/text-to-image-api">
+    Generate images from prompts — priced per image or per megapixel.
+  </Card>
+
+  <Card title="Image-to-Image API" icon="images" href="https://modelrunner.ai/image-to-image-api">
+    Edit, restyle, and upscale existing images.
+  </Card>
+
+  <Card title="Text-to-Video API" icon="film" href="https://modelrunner.ai/text-to-video-api">
+    Generate video from prompts — priced per second of output.
+  </Card>
+
+  <Card title="Image-to-Video API" icon="clapperboard" href="https://modelrunner.ai/image-to-video-api">
+    Animate still images into video.
+  </Card>
+
+  <Card title="Video-to-Video API" icon="video" href="https://modelrunner.ai/video-to-video-api">
+    Restyle, edit, extend, or upscale footage.
+  </Card>
+
+  <Card title="Music Generation API" icon="music" href="https://modelrunner.ai/music-generation-api">
+    Full tracks and instrumentals, flat per-output pricing.
+  </Card>
+
+  <Card title="Speech-to-Text API" icon="microphone" href="https://modelrunner.ai/speech-to-text-api">
+    Transcribe audio files to text.
+  </Card>
+
+  <Card title="Image-to-3D API" icon="cube" href="https://modelrunner.ai/image-to-3d-api">
+    Turn a single image into a textured 3D mesh.
+  </Card>
+</Columns>
+
+The full catalog lives at [modelrunner.ai/models](https://modelrunner.ai/models); each model page shows the same endpoint, inputs, and price your assistant sees through `get_model`.
+
 ## Tools
 
-The server exposes 18 tools, grouped by what they do.
+The server exposes 23 tools, grouped by what they do.
 
 ### Discovery
 
-| Tool                  | Purpose                                                                                       |
-| --------------------- | --------------------------------------------------------------------------------------------- |
-| `list_models`         | Paginated list of public models. Filters: `search`, `category`, `page`, `limit`.              |
-| `recommended_models`  | Admin-curated shortlist for a category (`image` / `video` / `utility`). Fastest pick path.    |
-| `get_model`           | Compact, LLM-friendly description of one model (inputs, outputs, pricing, examples).          |
-| `get_model_raw_schema`| Raw JSON Schema for a model's input — use this when you need exact field types.               |
-| `list_wrappers`       | Paginated list of wrappers (prompt-templated products built on base models).                  |
-| `recommended_wrappers`| Curated shortlist of wrappers by category.                                                    |
-| `get_wrapper`         | Details for one wrapper, including its base model and template.                               |
-| `search`              | Free-text search across models and wrappers in one call.                                      |
+| Tool | Purpose |
+| --- | --- |
+| `list_models` | Paginated list of public models. Filters: `search`, `category`, `page`, `limit`. |
+| `recommended_models` | Admin-curated shortlist for a category (`image` / `video` / `utility`). Fastest pick path. |
+| `get_model` | Compact, LLM-friendly description of one model (inputs, outputs, pricing, examples). |
+| `get_model_raw_schema` | Raw JSON Schema for a model's input — use this when you need exact field types. |
+| `list_wrappers` | Paginated list of wrappers (prompt-templated products built on base models). |
+| `recommended_wrappers` | Curated shortlist of wrappers by category. |
+| `get_wrapper` | Details for one wrapper, including its base model and template. |
+| `search` | Free-text search across models and wrappers in one call. |
 
 ### Inference
 
-| Tool               | Purpose                                                                                                                       |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `run_model`        | Submits an async inference request. Returns `requestId` immediately. Input field for files must be a URL — use `upload_file`. |
-| `get_request`      | Returns current status, output (if completed), pricing, and error for a request.                                              |
-| `wait_for_request` | Polls server-side until terminal state. Args: `timeoutSeconds` (default 120, max 600), `pollIntervalSeconds` (default 2).     |
+| Tool | Purpose |
+| --- | --- |
+| `run_model` | Submits an async inference request. Returns `requestId` immediately. Input field for files must be a URL — see the file tools below. |
+| `get_request` | Returns current status, output (if completed), pricing, and error for a request. |
+| `wait_for_request` | Polls server-side until terminal state. Args: `timeoutSeconds` (default 120, max 600), `pollIntervalSeconds` (default 2). |
 
 ### Files & history
 
-| Tool               | Purpose                                                                                                                                   |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `upload_file`      | Uploads raw `base64` bytes **or** a remote `url` to ModelRunner storage. Returns the canonical `fileUrl` for use in `run_model`. 200 MiB cap. |
-| `list_my_requests` | Authenticated user's request history, newest first. Filters: `status`, `modelEndpoint`, `page`, `limit`.                                  |
+| Tool | Purpose |
+| --- | --- |
+| `create_upload_url` | Preferred path for local files: returns presigned PUT URLs plus the final `fileUrl`. The assistant PUTs the bytes with its shell, so file contents never pass through the conversation. |
+| `upload_file` | Uploads raw `base64` bytes **or** a remote `url` to ModelRunner storage. Fallback for clients with no shell; 200 MiB cap. |
+| `list_my_requests` | Authenticated user's request history, newest first. Filters: `status`, `modelEndpoint`, `page`, `limit`. |
+| `list_my_wrappers` | Authenticated user's own wrappers, drafts included. |
 
 <Tip>
-  Local filesystem paths are **not** accepted by `upload_file` — the MCP server is remote. Pass `base64` bytes for files on your machine, or a `url` to re-host remote media.
+  Local filesystem paths are **not** accepted — the MCP server is remote. For a local file, `create_upload_url` \+ a shell `PUT` is the fast, token-free path; `upload_file` with `base64` bytes is the fallback when the assistant has no shell.
 </Tip>
 
 ### Authoring wrappers
 
 These tools let your assistant build and manage [wrappers](/guides/wrappers/overview) — your own products composed on top of base models.
 
-| Tool                      | Purpose                                                                                                          |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `wrapper_authoring_guide` | Returns the canonical authoring rulebook. The assistant reads this before drafting a wrapper.                    |
-| `preview_wrapper`         | Dry-run a wrapper's prompt template + field mappings against a sample input. Creates nothing.                    |
-| `create_wrapper`          | Create a wrapper you own. Defaults to `visibility: private`, `status: draft`. Ownership is derived from your identity. |
-| `patch_wrapper`           | Update one of your wrappers by `id`.                                                                             |
-| `delete_wrapper`          | Delete one of your wrappers.                                                                                     |
+| Tool | Purpose |
+| --- | --- |
+| `wrapper_authoring_guide` | Returns the canonical authoring rulebook. The assistant reads this before drafting a wrapper. |
+| `get_wrapper_raw_schema` | A wrapper's full input schema with untruncated enums. |
+| `get_wrapper_prompt_template` | A wrapper's Handlebars prompt template and `templateContext`. |
+| `get_wrapper_field_mappings` | A wrapper's per-base-model field mappings and default base model, shaped for `patch_wrapper`. |
+| `preview_wrapper` | Dry-run a wrapper's prompt template \+ field mappings against a sample input. Creates nothing. |
+| `create_wrapper` | Create a wrapper you own. Defaults to `visibility: private`, `status: draft`. Ownership is derived from your identity. |
+| `patch_wrapper` | Update one of your wrappers by `id`. |
+| `delete_wrapper` | Delete one of your wrappers. |
 
 <Tip>
-  See [Build a wrapper](/guides/wrappers/authoring) for a full worked example of this flow — from reading a base model's schema to publishing a live endpoint.
+  See [Build a wrapper](/guides/wrappers/authoring) for a full worked example of this flow — from reading a base model's schema to publishing a live endpoint. The three focused getters exist so the assistant fetches only the part it is editing — a large wrapper's template alone can run tens of thousands of characters.
 </Tip>
 
 ## Typical assistant flow
@@ -150,7 +195,7 @@ A common end-to-end pattern your assistant will run:
 4. wait_for_request(requestId=...)           → returns final output URLs
 ```
 
-For an image-to-image flow, prepend `upload_file` to convert local bytes to a URL the model can consume.
+For an image-to-image flow, prepend `create_upload_url` (or `upload_file`) to convert local bytes to a URL the model can consume.
 
 ## OAuth flow (for client implementers)
 

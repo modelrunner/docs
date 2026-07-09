@@ -9,19 +9,20 @@ icon: "book-open-cover"
 ModelRunner is a platform for running models with a seamless experimentation experience. Each model page provides a hands-on playground (inputs and output preview), a concise model description, related links, and clear cost information—all in one place.
 
 <Columns cols={2}>
-  <Card
-    title="Experiment model in the playground"
-    icon="pen-to-square"
-    href="https://modelrunner.ai/bytedance/sdxl-lightning-4step"
-  >
+  <Card title="Experiment model in the playground" icon="pen-to-square" href="https://modelrunner.ai/bytedance/sdxl-lightning-4step">
     Configure inputs, run generations, and iterate quickly—directly in your browser.
   </Card>
-  <Card
-    title="Use the unified API"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
+
+  <Card title="Use the unified API" icon="terminal" href="/api-reference/introduction">
     Call any supported model through one consistent interface. JavaScript SDK available.
+  </Card>
+
+  <Card title="Connect via MCP" icon="plug" href="/guides/mcp-server">
+    Run every model from Claude, Cursor, or any AI assistant — one OAuth sign-in, no API keys pasted into config.
+  </Card>
+
+  <Card title="Browse models & pricing" icon="table" href="https://modelrunner.ai/models">
+    The full catalog with per-model pay-per-use prices, by capability — from text-to-image to image-to-3D.
   </Card>
 </Columns>
 
@@ -32,5 +33,3 @@ ModelRunner is a platform for running models with a seamless experimentation exp
 - Model summary and usage notes
 - Related resources and example links
 - Pricing and cost guidance
-
-
