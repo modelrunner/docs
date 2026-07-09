@@ -57,7 +57,7 @@ Content-Type: application/json
 }
 ```
 
-Metadata is stored on the request and returned on its status, result, and list payloads — it is **never sent to the model** and never merged into the stored `input`.
+Metadata is stored on the request and returned whenever you read the request back — `GET /requests/{requestId}`, the `response_url` result payload, and list items. (The lightweight `status_url` envelope does not include it.) It is **never sent to the model** and never merged into the stored `input`.
 
 Limits (violations return `400`):
 
