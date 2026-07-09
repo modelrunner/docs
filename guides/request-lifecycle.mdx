@@ -14,13 +14,13 @@ IN_QUEUE  ──►  IN_PROGRESS  ──►  COMPLETED
                             ──►  CANCELLED
 ```
 
-| Status        | Meaning                                                                                                |
-| ------------- | ------------------------------------------------------------------------------------------------------ |
-| `IN_QUEUE`    | The request is accepted and waiting for the provider to start processing.                              |
-| `IN_PROGRESS` | The provider is actively generating output.                                                            |
-| `COMPLETED`   | Output is available at `response_url`. Billing has been settled.                                       |
-| `FAILED`      | The provider returned an error or the request was force-failed. Not billed.                            |
-| `CANCELLED`   | You called `cancel_url` (or the platform cancelled before any work was done). Not billed.              |
+| Status | Meaning |
+| --- | --- |
+| `IN_QUEUE` | The request is accepted and waiting for the provider to start processing. |
+| `IN_PROGRESS` | The provider is actively generating output. |
+| `COMPLETED` | Output is available at `response_url`. Billing has been settled. |
+| `FAILED` | The provider returned an error or the request was force-failed. Not billed. |
+| `CANCELLED` | You called `cancel_url` (or the platform cancelled before any work was done). Not billed. |
 
 `COMPLETED`, `FAILED`, and `CANCELLED` are **terminal** — the request will never transition away from them.
 
@@ -36,11 +36,49 @@ Content-Type: application/json
 
 The response returns immediately with `request_id`, `status: "IN_QUEUE"`, and three URLs:
 
-| URL            | Use                                                                          |
-| -------------- | ---------------------------------------------------------------------------- |
-| `status_url`   | Poll for status transitions (or skip polling — see below).                   |
-| `response_url` | `GET` once status is `COMPLETED` to retrieve the validated output.           |
-| `cancel_url`   | `GET` (yes, GET) to attempt cancellation. Returns the current status.        |
+| URL | Use |
+| --- | --- |
+| `status_url` | Poll for status transitions (or skip polling — see below). |
+| `response_url` | `GET` once status is `COMPLETED` to retrieve the validated output. |
+| `cancel_url` | `GET` (yes, GET) to attempt cancellation. Returns the current status. |
+
+## Tagging requests with metadata
+
+The submit body may include a reserved top-level `metadata` object alongside the model's input fields — a flat string map of your own tags (job ids, environments, batch labels):
+
+```bash
+POST /{ownerName}/{modelName}
+Authorization: Key $MODELRUNNER_KEY
+Content-Type: application/json
+
+{
+  "prompt": "two friends cooking together",
+  "metadata": { "env": "prod", "batch": "42" }
+}
+```
+
+Metadata is stored on the request and returned whenever you read the request back — `GET /requests/{requestId}`, the `response_url` result payload, and list items. (The lightweight `status_url` envelope does not include it.) It is **never sent to the model** and never merged into the stored `input`.
+
+Limits (violations return `400`):
+
+| Constraint | Value |
+| --- | --- |
+| Max keys | 16 |
+| Key length | 1–64 characters |
+| Values | strings only, ≤512 characters |
+
+Filter your request history by metadata with a single URL-encoded JSON query param — pairs match exactly and are AND-ed, combinable with `status`, `modelEndpoint`, and pagination:
+
+```bash
+curl -G https://queue.modelrunner.run/requests \
+  -H "Authorization: Key $MODELRUNNER_KEY" \
+  --data-urlencode 'metadata={"env":"prod","batch":"42"}' \
+  -d status=COMPLETED -d limit=10
+```
+
+<Note>
+  `metadata` is a reserved word at the top level of the submit body: a model whose own input schema defines a `metadata` field cannot receive it through the raw body.
+</Note>
 
 ## Three ways to watch a request
 
@@ -56,7 +94,7 @@ The response returns immediately with `request_id`, `status: "IN_QUEUE"`, and th
   </Accordion>
 
   <Accordion title="3. Polling">
-    `GET /{ownerName}/{modelName}/requests/{requestId}/status` returns the same response shape as the create call. Poll at 1–2 second intervals. The SDK helpers (`subscribe` in JS, `submit_async` + `iter_events` in Python) wrap this loop for you.
+    `GET /{ownerName}/{modelName}/requests/{requestId}/status` returns the same response shape as the create call. Poll at 1–2 second intervals. The SDK helpers (`subscribe` in JS, `submit_async` \+ `iter_events` in Python) wrap this loop for you.
 
     <Warning>
       The `queue_position` field is currently always `0` — real queue depth is not tracked. Don't surface it as "you're #N in line" in your UI.
