@@ -148,7 +148,7 @@ The server exposes 23 tools, grouped by what they do.
 
 | Tool | Purpose |
 | --- | --- |
-| `run_model` | Submits an async inference request. Returns `requestId` immediately. Input field for files must be a URL — see the file tools below. |
+| `run_model` | Submits an async inference request. Returns `requestId` immediately. Input field for files must be a URL — see the file tools below. Optional `metadata` (flat string map, max 16 keys) tags the request for later filtering. |
 | `get_request` | Returns current status, output (if completed), pricing, and error for a request. |
 | `wait_for_request` | Polls server-side until terminal state. Args: `timeoutSeconds` (default 120, max 600), `pollIntervalSeconds` (default 2). |
 
@@ -158,7 +158,7 @@ The server exposes 23 tools, grouped by what they do.
 | --- | --- |
 | `create_upload_url` | Preferred path for local files: returns presigned PUT URLs plus the final `fileUrl`. The assistant PUTs the bytes with its shell, so file contents never pass through the conversation. |
 | `upload_file` | Uploads raw `base64` bytes **or** a remote `url` to ModelRunner storage. Fallback for clients with no shell; 200 MiB cap. |
-| `list_my_requests` | Authenticated user's request history, newest first. Filters: `status`, `modelEndpoint`, `page`, `limit`. |
+| `list_my_requests` | Authenticated user's request history, newest first. Filters: `status`, `modelEndpoint`, `metadata` (exact key=value tags, AND-ed), `page`, `limit`. |
 | `list_my_wrappers` | Authenticated user's own wrappers, drafts included. |
 
 <Tip>
