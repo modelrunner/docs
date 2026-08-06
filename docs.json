@@ -3,9 +3,9 @@
   "theme": "maple",
   "name": "ModelRunner Docs",
   "colors": {
-    "primary": "#01eaff",
-    "light": "#01ffff",
-    "dark": "#01eaff"
+    "primary": "#0f172a",
+    "light": "#569dff",
+    "dark": "#0f172a"
   },
   "favicon": "/favicon.ico",
 

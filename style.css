@@ -1,0 +1,15 @@
+/* Match ModelRunner's sharp-cornered interface without flattening circles. */
+:root {
+  --radius: 2px;
+}
+
+:where(
+  button,
+  input,
+  textarea,
+  select,
+  [class~="rounded"],
+  [class*="rounded-"]
+):not([class*="rounded-full"]) {
+  border-radius: 2px !important;
+}
