@@ -38,6 +38,7 @@
             "group": "Platform features",
             "pages": [
               "guides/file-uploads",
+              "guides/webhooks",
               "guides/mcp-server"
             ]
           },

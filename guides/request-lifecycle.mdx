@@ -19,10 +19,18 @@ IN_QUEUE  ──►  IN_PROGRESS  ──►  COMPLETED
 | `IN_QUEUE` | The request is accepted and waiting for the provider to start processing. |
 | `IN_PROGRESS` | The provider is actively generating output. |
 | `COMPLETED` | Output is available at `response_url`. Billing has been settled. |
-| `FAILED` | The provider returned an error or the request was force-failed. Not billed. |
-| `CANCELLED` | You called `cancel_url` (or the platform cancelled before any work was done). Not billed. |
+| `FAILED` | The request was force-failed by the platform after being stuck. Not billed. |
+| `CANCELLED` | Reserved. **Not currently reachable** — see below. |
 
 `COMPLETED`, `FAILED`, and `CANCELLED` are **terminal** — the request will never transition away from them.
+
+<Note>
+  Two things about terminal states that are easy to get wrong:
+
+  **A failed generation is recorded as `COMPLETED`, not `FAILED`.** When the provider errors, the request itself completed — it just produced no output — so it lands on `COMPLETED` with a populated `error` and a `billingStatus` of `failed`. `FAILED` is reserved for requests the platform force-fails after they get stuck. So **`status` alone does not tell you whether the work succeeded**; check `billingStatus` (`charged` or `partial` means real output).
+
+  **`CANCELLED` is never written today.** Nothing sets it, and `cancel_url` does not cancel (see [Cancellation](#cancellation)). Handle it defensively if you like, but do not build a flow that waits for it.
+</Note>
 
 ## Submitting a request
 
@@ -40,7 +48,7 @@ The response returns immediately with `request_id`, `status: "IN_QUEUE"`, and th
 | --- | --- |
 | `status_url` | Poll for status transitions (or skip polling — see below). |
 | `response_url` | `GET` once status is `COMPLETED` to retrieve the validated output. |
-| `cancel_url` | `GET` (yes, GET) to attempt cancellation. Returns the current status. |
+| `cancel_url` | `GET` (yes, GET). Returns the current status — it does **not** currently cancel. See [Cancellation](#cancellation). |
 
 ## Tagging requests with metadata
 
@@ -83,14 +91,20 @@ curl -G https://queue.modelrunner.run/requests \
 ## Three ways to watch a request
 
 <AccordionGroup>
-  <Accordion title="1. Server-Sent Events (recommended)">
+  <Accordion title="1. Server-Sent Events (recommended for UIs)">
     Open one connection to `GET /requests/stream` and receive push updates for every in-flight request the user owns. On connect, the server emits a `snapshot` event with current state; thereafter each status transition emits an `update` event. A `: hb` SSE comment is sent every 25 seconds to keep the connection alive — your client can ignore it.
 
     This eliminates the polling loop entirely. Best for dashboards, multi-request UIs, and any client that opens multiple requests in parallel.
   </Accordion>
 
-  <Accordion title="2. Webhooks">
-    Not currently supported. If your use case requires server-to-server delivery without a long-lived connection, use the SSE stream (above) or polling (below) — webhook delivery is on the roadmap.
+  <Accordion title="2. Webhooks (recommended for server-to-server)">
+    Pass a `webhook` URL in the submit body and we POST the result to it when the request settles — no polling loop and no long-lived connection, so nothing is lost if your process restarts mid-request.
+
+    ```json
+    { "prompt": "…", "webhook": "https://example.com/hooks/modelrunner" }
+    ```
+
+    Deliveries are signed with [Standard Webhooks](https://www.standardwebhooks.com) HMAC-SHA256, retried for about two hours, and inspectable after the fact. See [**Webhooks**](/guides/webhooks) for the payload, verification snippets and the retry schedule.
   </Accordion>
 
   <Accordion title="3. Polling">
@@ -104,10 +118,13 @@ curl -G https://queue.modelrunner.run/requests \
 
 ## Cancellation
 
-`GET /{ownerName}/{modelName}/requests/{requestId}/cancel` attempts to cancel an in-queue or in-progress request and returns the current status payload.
+`GET /{ownerName}/{modelName}/requests/{requestId}/cancel` returns the request's current status payload.
 
-- If the provider hasn't started yet, the request transitions directly to `CANCELLED`. You are not billed.
-- If the provider is already running, cancellation is best-effort — the request may still reach `COMPLETED`. Always check the returned status before assuming the work stopped.
+<Warning>
+  **This endpoint does not currently cancel anything.** It is wired to the same handler as `status_url` and returns the same response, so the request continues to run and will still be billed if it completes. No request ever reaches `CANCELLED` (see the note under [States](#states)).
+
+  The route exists so that clients and SDKs built against it keep working once real cancellation ships. Until then, treat a submitted request as uninterruptible and do not rely on `cancel_url` to stop billable work.
+</Warning>
 
 ## Platform safety net: automatic finalization
 

@@ -1,0 +1,223 @@
+---
+title: "Webhooks"
+description: "Receive a signed POST when a request settles, instead of polling or holding a connection open."
+icon: "webhook"
+---
+
+Pass a `webhook` URL when you submit a request and ModelRunner POSTs the result to it when the request settles. No polling loop, no long-lived connection, and nothing lost if your process restarts mid-request.
+
+Best for server-to-server integrations and long jobs (video, training). For a browser UI that shows several requests at once, the [SSE stream](/guides/request-lifecycle) is usually a better fit.
+
+## Attaching a webhook
+
+Add the reserved top-level `webhook` key to the submit body, alongside the model's own input fields:
+
+```bash
+POST /{ownerName}/{modelName}
+Authorization: Key $MODELRUNNER_KEY
+Content-Type: application/json
+
+{
+  "prompt": "two friends cooking together",
+  "webhook": "https://example.com/hooks/modelrunner",
+  "webhook_events_filter": ["completed"]
+}
+```
+
+| Key | Notes |
+| --- | --- |
+| `webhook` | HTTPS URL, max 2048 characters. Reserved — it is stripped before the model sees your input, so it never reaches the provider. |
+| `webhook_events_filter` | Optional array. Defaults to `["completed"]`. |
+
+The create response echoes both back so you can confirm they were accepted.
+
+<Warning>
+  An unusable webhook **fails the submit with a `400`** rather than being silently dropped — you find out immediately instead of waiting for a callback that can never arrive. Rejected: a non-HTTPS scheme, a malformed URL, credentials embedded in the URL, a host that resolves to a private or internal address, an unknown event name, or `webhook_events_filter` without a `webhook`.
+</Warning>
+
+## Events
+
+| Event | Fires when |
+| --- | --- |
+| `completed` | The request reached a terminal state. This is the one you want. |
+| `start` | The provider began executing (`IN_QUEUE` → `IN_PROGRESS`). |
+
+<Note>
+  **`start` is best-effort — never block on it.** A fast request can go from `IN_QUEUE` straight to a terminal state between two provider polls, in which case only `completed` is delivered. This is inherent to how status is observed, not a bug.
+</Note>
+
+Replicate's `output` and `logs` events have no equivalent here: ModelRunner does not stream partial provider output into the request record, so there is nothing to emit them from.
+
+## The payload
+
+The body is **the same object `response_url` returns**, plus `event` and `billingStatus`. One shape to learn.
+
+```json
+{
+  "event": "completed",
+  "id": "V1StGXR8_Z5jdHi6B",
+  "modelEndpoint": "owner/model-name",
+  "status": "COMPLETED",
+  "billingStatus": "charged",
+  "input": { "prompt": "two friends cooking together" },
+  "output": {
+    "images": [{ "url": "https://media.modelrunner.ai/abc123.png" }]
+  },
+  "error": null,
+  "metadata": { "jobId": "42" },
+  "inferenceTime": 4120,
+  "delayTime": 310,
+  "createdAt": "2026-08-06T12:00:00.000Z"
+}
+```
+
+<Warning>
+  **Check `billingStatus`, not just `status`.** A generation that failed at the provider is recorded as `status: "COMPLETED"` with `billingStatus: "failed"` and a populated `error` — because the request itself completed, it just produced no output. Treating `status: "COMPLETED"` alone as success will report every failure as a success.
+
+  A real success is `status: "COMPLETED"` with `billingStatus` of `charged` or `partial`.
+</Warning>
+
+Any `metadata` you attached at submit time is echoed back, which is the easiest way to correlate a delivery with your own records without a database lookup.
+
+## Verifying a delivery
+
+Every delivery is signed using [Standard Webhooks](https://www.standardwebhooks.com), so you can verify it with an off-the-shelf library rather than hand-rolled crypto.
+
+Three headers are sent:
+
+| Header | Meaning |
+| --- | --- |
+| `webhook-id` | Unique id for this delivery. **Stable across retries** — use it to deduplicate. |
+| `webhook-timestamp` | Unix seconds. Reject deliveries far outside your tolerance to prevent replay. |
+| `webhook-signature` | Space-delimited list of `v1,<base64>` signatures. Match **any** one of them. |
+
+### Get your signing secret
+
+```bash
+curl -H "Authorization: Key $MODELRUNNER_KEY" \
+  https://modelrunner.run/webhooks/default/secret
+```
+
+```json
+{ "key": "whsec_C2FVsBQIhrscChlQIMV+b5sSYspob7oD" }
+```
+
+The secret is per-account. Cache it — do not fetch it on every delivery.
+
+### Verify with a library
+
+<CodeGroup>
+
+```javascript Node
+import { Webhook } from 'standardwebhooks'
+
+const wh = new Webhook(process.env.MODELRUNNER_WEBHOOK_SECRET)
+
+app.post('/hooks/modelrunner', express.raw({ type: 'application/json' }), (req, res) => {
+  let payload
+  try {
+    // Must be the RAW body — any reserialization breaks the signature.
+    payload = wh.verify(req.body, req.headers)
+  } catch {
+    return res.sendStatus(400)
+  }
+
+  res.sendStatus(200) // acknowledge first, then do the work
+  handle(payload)
+})
+```
+
+```python Python
+from standardwebhooks import Webhook
+
+wh = Webhook(os.environ["MODELRUNNER_WEBHOOK_SECRET"])
+
+@app.post("/hooks/modelrunner")
+async def hook(request: Request):
+    raw = await request.body()  # RAW bytes, not the parsed JSON
+    try:
+        payload = wh.verify(raw, dict(request.headers))
+    except Exception:
+        raise HTTPException(status_code=400)
+    background.add_task(handle, payload)
+    return Response(status_code=200)
+```
+
+</CodeGroup>
+
+### Verify manually
+
+If you would rather not add a dependency: HMAC-SHA256 over `{webhook-id}.{webhook-timestamp}.{rawBody}`, keyed by the base64 portion of the secret **after** the `whsec_` prefix.
+
+```javascript
+import { createHmac, timingSafeEqual } from 'node:crypto'
+
+function verify(headers, rawBody, secret) {
+  const id = headers['webhook-id']
+  const ts = headers['webhook-timestamp']
+
+  if (Math.abs(Date.now() / 1000 - Number(ts)) > 300) return false // replay guard
+
+  const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
+  const expected = createHmac('sha256', key)
+    .update(`${id}.${ts}.${rawBody}`, 'utf8')
+    .digest('base64')
+
+  // The header is a LIST — match any entry, and compare in constant time.
+  return headers['webhook-signature']
+    .split(' ')
+    .map((s) => s.replace(/^v1,/, ''))
+    .some((sig) => {
+      const a = Buffer.from(sig)
+      const b = Buffer.from(expected)
+      return a.length === b.length && timingSafeEqual(a, b)
+    })
+}
+```
+
+The header carries more than one signature during a secret rotation. Always iterate.
+
+## Retries and idempotency
+
+A delivery succeeds on any `2xx` returned within **15 seconds**. Anything else — including a `3xx`, since redirects are not followed — counts as a failure and is retried on a fixed schedule:
+
+```text
+5s → 30s → 2m → 5m → 10m → 20m → 30m → 45m → 60m
+```
+
+That is 10 attempts spanning roughly two hours. Two conditions stop retries immediately: a `410 Gone`, and a URL that resolves to a private address.
+
+<Warning>
+  **Delivery is at-least-once, so make your handler idempotent.** A POST can succeed while our record of it fails to commit, and the delivery is then retried. `webhook-id` is stable across every retry of the same delivery — use it as your deduplication key.
+
+  Also ignore anything that arrives **after** a terminal event for a request, and do not assume ordering between `start` and `completed`.
+</Warning>
+
+## Requirements for your endpoint
+
+- **HTTPS**, on a publicly resolvable host. Private, loopback, link-local and internal addresses are rejected — both when you submit and again at delivery time against the resolved address.
+- **Respond `2xx` within 15 seconds.** Acknowledge first and process asynchronously; do not do the work inside the request.
+- **Redirects are not followed.** Point the webhook at its final URL.
+
+## Inspecting deliveries
+
+```bash
+# Recent deliveries, newest first. Filter by requestId, status or event.
+curl -H "Authorization: Key $MODELRUNNER_KEY" \
+  "https://modelrunner.run/webhooks/deliveries?limit=25"
+
+# Re-send one after fixing your endpoint.
+curl -X POST -H "Authorization: Key $MODELRUNNER_KEY" \
+  https://modelrunner.run/webhooks/deliveries/{deliveryId}/replay
+```
+
+Each record carries `status` (`pending`, `delivering`, `delivered`, `failed`), `attempts`, `lastResponseStatus` and `lastError` — enough to tell a broken endpoint from a broken payload.
+
+## Rotating your secret
+
+```bash
+curl -X POST -H "Authorization: Key $MODELRUNNER_KEY" \
+  https://modelrunner.run/webhooks/default/secret/rotate
+```
+
+The new secret is returned and takes effect immediately. The **previous secret keeps verifying for 24 hours**, and during that window deliveries are signed with both — so you can roll the new value out without dropping anything. This is why your verification must iterate over every signature in the header.
