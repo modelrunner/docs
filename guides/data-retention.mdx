@@ -1,0 +1,184 @@
+---
+title: "Data retention"
+description: "How long ModelRunner keeps your request payloads and generated media, how to shorten it, and how to delete a request's data outright."
+icon: "clock"
+---
+
+Every request produces two kinds of data: the **JSON payloads** (the input you sent and the output the model returned, which power your dashboard history) and the **media files** the model generated, hosted on the ModelRunner CDN. Each has its own default retention and its own control.
+
+| Data | Default | Control |
+| --- | --- | --- |
+| **Request payloads** (input / output JSON) | 180 days | `X-Modelrunner-Store-IO: 0` to opt out, or delete on demand |
+| **Generated media** (CDN files) | Kept until you delete it | `X-Modelrunner-Object-Lifecycle-Preference` |
+| **Uploaded input files** | Kept until you delete them | Same header, on the upload call |
+
+The 180-day payload default applies to requests created **on or after** this policy took effect. Older requests are kept until you delete them — nothing was removed retroactively.
+
+## Generated media
+
+Set an expiration on the files a request produces with the `X-Modelrunner-Object-Lifecycle-Preference` header:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://queue.modelrunner.run/{ownerName}/{modelName}" \
+  -H "Authorization: Key $MODELRUNNER_KEY" \
+  -H "Content-Type: application/json" \
+  -H 'X-Modelrunner-Object-Lifecycle-Preference: {"expiration_duration_seconds": 3600}' \
+  -d '{"prompt": "a sunset"}'
+```
+
+```javascript JavaScript
+const result = await modelrunner.subscribe('owner/model-name', {
+	input: { prompt: 'a sunset' },
+	headers: {
+		'X-Modelrunner-Object-Lifecycle-Preference': JSON.stringify({
+			expiration_duration_seconds: 3600,
+		}),
+	},
+})
+```
+
+```python Python
+import json
+
+result = modelrunner.subscribe(
+    "owner/model-name",
+    arguments={"prompt": "a sunset"},
+    headers={
+        "X-Modelrunner-Object-Lifecycle-Preference": json.dumps(
+            {"expiration_duration_seconds": 3600}
+        )
+    },
+)
+```
+
+</CodeGroup>
+
+| Field | Notes |
+| --- | --- |
+| `expiration_duration_seconds` | Integer seconds, from 60 up to 157,680,000 (5 years). Use `null` for no expiration. |
+
+The countdown starts when the request **finishes**, not when you submit it — so a 60-second expiration on a model that takes two minutes still gives you a full minute of file life after the output exists.
+
+<Warning>
+  Expired files are permanently deleted and cannot be recovered. Download anything you need to keep before it expires.
+</Warning>
+
+The same header works on [file uploads](/guides/file-uploads), setting an expiration on the file you upload. One exception is worth knowing: **an uploaded file that you then use as a request input stops expiring.** Another request may reference the same upload, so we stop treating it as disposable. Delete those explicitly when you are done with them.
+
+### Access controls are not supported
+
+CDN URLs are unguessable but **public to anyone holding the link**. There is no per-user access-control list, and an `initial_acl` field in the lifecycle header is rejected with a `400` rather than ignored — a silently-dropped ACL would leave you believing files are private when they are readable. Treat the URL itself as the secret, and use a short expiration for sensitive output.
+
+## Request payloads
+
+Inputs and outputs are stored for **180 days**, which is what makes your [dashboard history](https://modelrunner.ai/settings/requests) work.
+
+To keep them out of storage entirely, send `X-Modelrunner-Store-IO: 0`:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST "https://queue.modelrunner.run/{ownerName}/{modelName}" \
+  -H "Authorization: Key $MODELRUNNER_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Modelrunner-Store-IO: 0" \
+  -d '{"prompt": "a sunset"}'
+```
+
+```javascript JavaScript
+const result = await modelrunner.subscribe('owner/model-name', {
+	input: { prompt: 'a sunset' },
+	headers: { 'X-Modelrunner-Store-IO': '0' },
+})
+```
+
+```python Python
+result = modelrunner.subscribe(
+    "owner/model-name",
+    arguments={"prompt": "a sunset"},
+    headers={"X-Modelrunner-Store-IO": "0"},
+)
+```
+
+</CodeGroup>
+
+<Note>
+  **This is not "never written".** We hold the output briefly while we move media onto the CDN, build thumbnails and calculate what to charge you — usage-priced models are billed from the output itself. Payloads are removed shortly after the request settles, once your result has been handed over and any webhook body has been rendered. Budget for a window of roughly **15 minutes**, not zero.
+
+  Your media is unaffected: files stay for as long as the expiration above allows.
+</Note>
+
+Because the payload is gone afterwards, a request submitted this way is only readable **once** in practice — from the response to your own poll, or from a [webhook](/guides/webhooks) delivery. Capture what you need at that point.
+
+## Deleting a request's data
+
+```bash
+curl -X DELETE "https://queue.modelrunner.run/requests/{requestId}/payloads" \
+  -H "Authorization: Key $MODELRUNNER_KEY" \
+  -H "X-Idempotency-Key: $(uuidgen)"
+```
+
+You can also append `/payloads` to the `response_url` the submit returned.
+
+This removes the input and output JSON **and** deletes the media files that request generated:
+
+```json
+{
+  "request_id": "V1StGXR8_Z5jdHi6B",
+  "payloads_deleted": true,
+  "cdn_delete_results": [
+    { "link": "https://media.modelrunner.ai/abc123.png", "exception": null }
+  ]
+}
+```
+
+|  |  |
+| --- | --- |
+| **Deletes** | The payload JSON, and the CDN files in the request's output |
+| **Keeps** | Input files you uploaded — another request may use the same file |
+| **Keeps** | The request's timestamp, model, timings and price, so your billing history stays intact |
+
+`X-Idempotency-Key` is optional; repeating the same delete is safe either way.
+
+<Warning>
+  Deletion is permanent. The files return `403` immediately afterwards and cannot be restored.
+</Warning>
+
+A delete returns `409` in three cases, each protecting something:
+
+- **The request has not finished.** Its payload does not exist yet in final form.
+- **It has not been charged yet.** Usage-priced models compute the bill from the output, so removing it first would produce a wrong charge.
+- **It is published as an example** on a model or wrapper page. Detach it first.
+
+## Reading a request whose payloads are gone
+
+The request record survives a purge — only the payloads are emptied. `input` and `output` come back as `{}`, and a **`payloadsPurgedAt`** timestamp tells you why.
+
+```json
+{
+  "id": "V1StGXR8_Z5jdHi6B",
+  "status": "COMPLETED",
+  "input": {},
+  "output": {},
+  "payloadsPurgedAt": "2026-08-06T12:00:00.000Z",
+  "totalPrice": "0.04"
+}
+```
+
+<Note>
+  Key your handling off `payloadsPurgedAt`, not off an empty output — `{}` is also what a failed generation looks like. See the `billingStatus` warning on the [webhooks page](/guides/webhooks) for the same distinction.
+</Note>
+
+## Setting a default for your account
+
+Rather than sending headers on every call, set a default under **Settings → Account** in the dashboard: payload retention, a media expiration, and whether to store payloads at all. It applies to every request on the account.
+
+A header on an individual request always wins over the account default — including `"expiration_duration_seconds": null`, which is how you exempt one request from an account-wide media expiration.
+
+## Coming from fal
+
+The `X-Fal-Object-Lifecycle-Preference` and `X-Fal-Store-IO` headers are accepted as aliases with identical behaviour, so existing code keeps working. If you send both spellings, the `X-Modelrunner-*` one wins.
+
+The one deliberate difference is `initial_acl`, which ModelRunner does not implement — see [above](#access-controls-are-not-supported).
