@@ -65,7 +65,15 @@ The countdown starts when the request **finishes**, not when you submit it — s
   Expired files are permanently deleted and cannot be recovered. Download anything you need to keep before it expires.
 </Warning>
 
-The same header works on [file uploads](/guides/file-uploads), setting an expiration on the file you upload. One exception is worth knowing: **an uploaded file that you then use as a request input stops expiring.** Another request may reference the same upload, so we stop treating it as disposable. Delete those explicitly when you are done with them.
+The same header works on [file uploads](/guides/file-uploads), setting an expiration on the file you upload — send it on `POST /storage/upload/initiate`. There the countdown starts at **upload** time, since the bytes are landing immediately.
+
+One exception is worth knowing: **an uploaded file that you then use as a request input stops expiring.** Another request may reference the same upload, so we stop treating it as disposable. The same applies to a file you favorite, tag, or use as a model, wrapper or collection image. Delete those explicitly when you are done with them.
+
+<Note>
+  For a [multipart upload](/guides/file-uploads#multipart-upload-large-files), send the header on `POST /storage/upload/complete` instead — that is the call that records the file.
+
+  One client-side gap: the JavaScript SDK's `storage.upload()` switches to multipart above 90 MB and completes that upload without going through the API, so a `lifecycle` option is not applied to files that large. Use the raw HTTP flow, or delete large uploads explicitly.
+</Note>
 
 ### Access controls are not supported
 

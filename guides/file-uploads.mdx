@@ -14,7 +14,7 @@ Most multimodal models on ModelRunner accept files (images, audio clips, videos)
 Both flows return a canonical `media.modelrunner.ai` URL that you can pass directly to any model input field that accepts a file.
 
 <Callout>
-The SDKs wrap the single-part flow as `storage.upload()` (JS) and `upload_file()` (Python). Use the raw HTTP flow below when you need multipart or when calling the API directly.
+  The SDKs wrap the single-part flow as `storage.upload()` (JS) and `upload_file()` (Python). Use the raw HTTP flow below when you need multipart or when calling the API directly.
 </Callout>
 
 ## Single-part upload
@@ -45,13 +45,12 @@ A two-step flow: initiate → PUT bytes to the returned presigned URL.
     }
     ```
 
-    | Field          | Required | Notes                                                  |
-    | -------------- | -------- | ------------------------------------------------------ |
-    | `file_name`    | yes      | Original filename; preserved (with a random prefix).   |
-    | `content_type` | yes      | MIME type. Set the same value on the `PUT` below.      |
-    | `size`         | no       | Byte size, for validation.                             |
+    | Field | Required | Notes |
+    | --- | --- | --- |
+    | `file_name` | yes | Original filename; preserved (with a random prefix). |
+    | `content_type` | yes | MIME type. Set the same value on the `PUT` below. |
+    | `size` | no | Byte size, for validation. |
   </Step>
-
   <Step title="PUT the bytes to the presigned URL">
     Send the raw file body to `upload_url` with the same `Content-Type`. Do **not** add the `Authorization` header — the presigned URL carries its own credentials.
 
@@ -73,9 +72,32 @@ A two-step flow: initiate → PUT bytes to the returned presigned URL.
   </Step>
 </Steps>
 
+### Setting an expiration
+
+Uploads are kept until you delete them. To have one expire automatically, send the object-lifecycle header on the **initiate** call — the same header used for [generated media](/guides/data-retention#generated-media):
+
+```bash
+curl -X POST "https://api.modelrunner.run/storage/upload/initiate" \
+  -H "Authorization: Key $MODELRUNNER_KEY" \
+  -H "Content-Type: application/json" \
+  -H 'X-Modelrunner-Object-Lifecycle-Preference: {"expiration_duration_seconds": 3600}' \
+  -d '{ "file_name": "input.png", "content_type": "image/png" }'
+```
+
+The countdown starts at upload time. A file you later pass as a request input **stops expiring**, as does one you favorite or tag — see [data retention](/guides/data-retention) for the full rules. For multipart, send the header on the `complete` call instead, since that is where the file is recorded.
+
+In the JavaScript SDK this is the `lifecycle` option:
+
+```ts
+const fileUrl = await modelrunner.storage.upload(new Blob([buf]), {
+  lifecycle: { expiresIn: "1h" },
+});
+```
+
 ### Using the SDKs
 
 <CodeGroup>
+
 ```ts JavaScript
 import { modelrunner } from "@modelrunner/client";
 import fs from "node:fs";
@@ -97,6 +119,7 @@ result = modelrunner_ai.run(
     arguments={"image_path": file_url},
 )
 ```
+
 </CodeGroup>
 
 ## Multipart upload (large files)
@@ -124,7 +147,6 @@ For multi-gigabyte videos or when you want resumability, use the three-step mult
     }
     ```
   </Step>
-
   <Step title="Upload each part">
     Split the file into parts (S3 requires each part except the last to be ≥ 5 MiB). For each part number starting at `1`, request a presigned URL and `PUT` the part to it.
 
@@ -135,7 +157,7 @@ For multi-gigabyte videos or when you want resumability, use the three-step mult
       --data-urlencode "uploadId=$UPLOAD_ID" \
       --data-urlencode "partNumber=1"
     # → { "presignedUrl": "https://s3.amazonaws.com/...&partNumber=1&..." }
-
+    
     curl -X PUT "$PRESIGNED_URL" --data-binary @part-1.bin -D headers.txt
     # Read the ETag from the response headers; you'll need it for `complete`.
     ```
@@ -144,7 +166,6 @@ For multi-gigabyte videos or when you want resumability, use the three-step mult
       Capture the `ETag` header from each `PUT` response — S3 requires it (without quotes) when completing the upload.
     </Tip>
   </Step>
-
   <Step title="Complete the upload">
     `POST /storage/upload/complete` finalizes the multipart upload and creates the file row.
 
@@ -169,11 +190,11 @@ For multi-gigabyte videos or when you want resumability, use the three-step mult
 
 ## Reference
 
-| Method | Path                                  | Body / Query                                                  | Returns                              |
-| ------ | ------------------------------------- | ------------------------------------------------------------- | ------------------------------------ |
-| POST   | `/storage/upload/initiate`            | `{ file_name, content_type, size? }`                          | `{ upload_url, file_url }`           |
-| POST   | `/storage/upload/initiate-multipart`  | `{ file_name, content_type, size? }`                          | `{ fileUrl, uploadId, uploadKey }`   |
-| GET    | `/storage/upload/multipart-url`       | `?uploadKey&uploadId&partNumber`                              | `{ presignedUrl }`                   |
-| POST   | `/storage/upload/complete`            | `{ uploadId, uploadKey, parts: [{ partNumber, etag }] }`      | `{ fileUrl }`                        |
+| Method | Path | Body / Query | Returns |
+| --- | --- | --- | --- |
+| POST | `/storage/upload/initiate` | `{ file_name, content_type, size? }` | `{ upload_url, file_url }` |
+| POST | `/storage/upload/initiate-multipart` | `{ file_name, content_type, size? }` | `{ fileUrl, uploadId, uploadKey }` |
+| GET | `/storage/upload/multipart-url` | `?uploadKey&uploadId&partNumber` | `{ presignedUrl }` |
+| POST | `/storage/upload/complete` | `{ uploadId, uploadKey, parts: [{ partNumber, etag }] }` | `{ fileUrl }` |
 
 All endpoints require the standard `Authorization: Key <your_key>` header. See [API keys](/api-keys).
