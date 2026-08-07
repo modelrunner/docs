@@ -46,7 +46,7 @@ The create response echoes both back so you can confirm they were accepted.
   **`start` is best-effort — never block on it.** A fast request can go from `IN_QUEUE` straight to a terminal state between two provider polls, in which case only `completed` is delivered. This is inherent to how status is observed, not a bug.
 </Note>
 
-Replicate's `output` and `logs` events have no equivalent here: ModelRunner does not stream partial provider output into the request record, so there is nothing to emit them from.
+There are no incremental `output` or `logs` events: ModelRunner does not stream partial output into the request record, so there is nothing to emit them from. Use `completed` and read the payload.
 
 ## The payload
 

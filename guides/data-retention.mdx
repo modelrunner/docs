@@ -176,9 +176,3 @@ The request record survives a purge — only the payloads are emptied. `input` a
 Rather than sending headers on every call, set a default under **Settings → Account** in the dashboard: payload retention, a media expiration, and whether to store payloads at all. It applies to every request on the account.
 
 A header on an individual request always wins over the account default — including `"expiration_duration_seconds": null`, which is how you exempt one request from an account-wide media expiration.
-
-## Coming from fal
-
-The `X-Fal-Object-Lifecycle-Preference` and `X-Fal-Store-IO` headers are accepted as aliases with identical behaviour, so existing code keeps working. If you send both spellings, the `X-Modelrunner-*` one wins.
-
-The one deliberate difference is `initial_acl`, which ModelRunner does not implement — see [above](#access-controls-are-not-supported).

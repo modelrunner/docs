@@ -15,27 +15,25 @@ A wrapper can sit on top of **more than one base model**. Callers keep using the
 ## How selection works
 
 <Steps>
-<Step title="Every wrapper has a default">
-  `defaultBaseModelId` is the model used when the caller doesn't ask for a specific one. Make it the safest, most representative option — most calls will land here.
-</Step>
+  <Step title="Every wrapper has a default">
+    `defaultBaseModelId` is the model used when the caller doesn't ask for a specific one. Make it the safest, most representative option — most calls will land here.
+  </Step>
+  <Step title="Callers can override with `base_model`">
+    To target a non-default model, the caller sends a top-level `base_model` field in the request body set to that model's **endpoint** — its `ownerName/alias`, the same identifier you'd use to call the model directly:
 
-<Step title="Callers can override with `base_model`">
-  To target a non-default model, the caller sends a top-level `base_model` field in the request body set to that model's **endpoint** — its `ownerName/alias`, the same identifier you'd use to call the model directly:
+    ```bash
+    POST /{ownerName}/{alias}
+    Authorization: Key $MODELRUNNER_KEY
+    Content-Type: application/json
+    
+    { "subject": "a fox in a trench coat", "mood": "noir", "base_model": "owner/model-name" }
+    ```
 
-  ```bash
-  POST /{ownerName}/{alias}
-  Authorization: Key $MODELRUNNER_KEY
-  Content-Type: application/json
-
-  { "subject": "a fox in a trench coat", "mood": "noir", "base_model": "fal/flux-dev" }
-  ```
-
-  `base_model` is **honored only when the wrapper has more than one base model**, and the endpoint must be one of the wrapper's own base models — otherwise the request is rejected. For a single-model wrapper it's ignored.
-</Step>
-
-<Step title="Per-model mappings adapt the same input">
-  Each base model carries its **own** `fieldMappings`. The caller's input is identical regardless of which model runs; the mappings reconcile it to each model's native schema.
-</Step>
+    `base_model` is **honored only when the wrapper has more than one base model**, and the endpoint must be one of the wrapper's own base models — otherwise the request is rejected. For a single-model wrapper it's ignored.
+  </Step>
+  <Step title="Per-model mappings adapt the same input">
+    Each base model carries its **own** `fieldMappings`. The caller's input is identical regardless of which model runs; the mappings reconcile it to each model's native schema.
+  </Step>
 </Steps>
 
 <Warning>
@@ -81,7 +79,7 @@ When you select more than one base model, your wrapper schema has to remain vali
 
 - **Keep the schema compatible with every model.** Don't expose a field only one model understands unless you can safely `omit` or adapt it for the others.
 - **Each model needs its own mappings** that produce only keys that model accepts. Create-time validation checks every produced key against each base model's schema.
-- **`image_size` must be a shared subset.** If your wrapper exposes an `image_size` enum, every preset you offer must be supported by *all* selected models — the allowed set is the intersection of what each model supports. Don't advertise a size one of your models can't honor.
+- **`image_size` must be a shared subset.** If your wrapper exposes an `image_size` enum, every preset you offer must be supported by _all_ selected models — the allowed set is the intersection of what each model supports. Don't advertise a size one of your models can't honor.
 
 <Tip>
   Start with a single base model and get the wrapper working end to end. Add a second model only when there's a real reason for callers to choose — or when you're migrating the default. Fewer models means simpler mappings and fewer compatibility constraints.
