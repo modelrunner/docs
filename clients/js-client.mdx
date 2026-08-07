@@ -92,6 +92,100 @@ A violation throws a `ValidationError` (`"Invalid metadata"`, status `400`) befo
   `metadata` is reserved at the top level of the request body. If a model's own input schema declares a field named `metadata`, sending it this way is rejected by that model's validation — it's treated as a request tag, not model input.
 </Warning>
 
+## Get called back with webhooks
+
+Instead of holding a `subscribe` open, pass a `webhookUrl` and ModelRunner POSTs the result to you when the request settles. Nothing is lost if your process restarts mid-request, which is what makes this the right choice for long video and training jobs.
+
+```ts
+const { request_id } = await modelrunner.queue.submit("bytedance/sdxl-lightning-4step", {
+  input: { prompt: "two friends cooking together" },
+  webhookUrl: "https://example.com/hooks/modelrunner",
+  webhookEvents: ["completed"], // optional — this is the default
+});
+```
+
+`webhookUrl` also works on `subscribe`, if you want both a callback and in-process updates. See the [webhooks guide](/guides/webhooks) for the events, the retry schedule, and the full payload shape.
+
+<Warning>
+  **Requires `@modelrunner/client` 1.2.0 or newer.** In earlier versions this option was accepted and silently ignored — no callback was ever sent, and no error was raised. Upgrading also means the URL is now validated, so a bad value that used to be quietly dropped will fail the submit with a `400`.
+</Warning>
+
+### Verify a delivery
+
+Every delivery is signed. Fetch your signing secret **once** and keep it in your server environment — never in a browser:
+
+```ts
+const { key } = await modelrunner.webhooks.getSecret();
+```
+
+Then verify each delivery against the **raw** request body:
+
+```ts
+import express from "express";
+import { modelrunner, WebhookVerificationError } from "@modelrunner/client";
+
+app.post(
+  "/hooks/modelrunner",
+  // The signature covers the delivered bytes, so the raw body is required.
+  // express.json() would parse and discard it.
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    let payload;
+    try {
+      payload = await modelrunner.webhooks.verify({
+        secret: process.env.MODELRUNNER_WEBHOOK_SECRET,
+        headers: req.headers,
+        body: req.body,
+      });
+    } catch (error) {
+      // WebhookVerificationError — a missing header, a stale timestamp, or a
+      // signature that doesn't match. Treat every case the same way.
+      return res.sendStatus(401);
+    }
+
+    res.sendStatus(200); // acknowledge first, then do the work
+    await handleResult(payload);
+  },
+);
+```
+
+`verify` is async because it uses the Web Crypto API, which is what lets the same code run in Node, serverless runtimes and edge workers. It returns the parsed payload and throws `WebhookVerificationError` on any failure.
+
+<Warning>
+  **Read `billingStatus`, not `status`.** A generation that failed at the provider still arrives as `status: "COMPLETED"`, with `billingStatus: "failed"` and a populated `error`. Code that treats `status` alone as success will report every failure as a success.
+
+  ```ts
+  if (payload.billingStatus === "charged" || payload.billingStatus === "partial") {
+    console.log(payload.output);
+  }
+  ```
+</Warning>
+
+Two more things your endpoint must do, both easy to get wrong:
+
+- **Return `2xx` directly.** Redirects are not followed, so a `301` — a missing trailing slash, an `http`→`https` upgrade — is recorded as a failed attempt and you see nothing but silence.
+- **Deduplicate on the `webhook-id` header.** Delivery is at-least-once and that id is stable across retries of the same delivery.
+
+### Rotate the secret
+
+```ts
+const { key } = await modelrunner.webhooks.rotateSecret();
+```
+
+The previous secret keeps verifying for **24 hours**, and deliveries are signed with both during that window — so you can roll the new value out without dropping anything. Pass both to bridge the gap:
+
+```ts
+await modelrunner.webhooks.verify({
+  secrets: [process.env.WEBHOOK_SECRET_NEXT, process.env.WEBHOOK_SECRET_CURRENT],
+  headers: req.headers,
+  body: req.body,
+});
+```
+
+<Note>
+  Rotating twice inside that window ends it early and breaks receivers still holding the original secret, so this call is never retried automatically. Rotate once, deploy, then rotate again if you need to.
+</Note>
+
 ## Upload files
 
 Upload local files to ModelRunner storage and receive a temporary URL you can pass to model inputs (for example, image or audio URLs).
