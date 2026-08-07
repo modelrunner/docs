@@ -87,9 +87,15 @@ result = modelrunner_ai.run(
 print(result["output"])
 ```
 
+It's also supported on `subscribe` and `stream`, and on every `_async` variant.
+
 `metadata` is sent as a reserved top-level sibling of your input fields — never nested inside `arguments`, and never forwarded to the model. It's stored on the request so you can filter your history by it later; the client itself has no read-back or filtering API, so read tags back through the [request lifecycle metadata filter](/guides/request-lifecycle#tagging-requests-with-metadata) or the MCP `list_my_requests` tool.
 
-Limits, enforced before the request is dispatched:
+<Warning>
+  **Requires `modelrunner-ai` 0.3.0 or newer.** Earlier versions did not accept the argument at all — passing it raises `TypeError: run() got an unexpected keyword argument 'metadata'`.
+</Warning>
+
+Limits, enforced locally before the request is dispatched — every violation is reported at once, so a batch of bad tags surfaces in one error:
 
 | Constraint | Value |
 | --- | --- |
