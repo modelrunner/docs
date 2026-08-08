@@ -62,7 +62,18 @@ const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
   },
 });
 
-console.log(result.output);
+console.log(result.data.output);
+```
+
+<Warning>
+  `run` and `subscribe` resolve to a wrapper, not the model record itself — so `result.output` is always `undefined`. The model's own fields live one level down, under `result.data`.
+</Warning>
+
+```ts
+type Result<T> = {
+  data: T;           // the model record — `output`, `logs`, and the rest
+  requestId: string; // useful for logs and support
+};
 ```
 
 ## Tag requests with metadata

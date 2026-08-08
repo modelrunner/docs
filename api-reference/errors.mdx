@@ -98,7 +98,8 @@ import modelrunner_ai
 from modelrunner_ai import ApiError
 
 try:
-    result = modelrunner_ai.run("owner/model", arguments=input)
+    handle = modelrunner_ai.submit("owner/model", arguments=input)
+    result = handle.get()
 except ApiError as e:
     if e.status == 402:
         show_top_up_dialog()

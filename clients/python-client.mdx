@@ -72,6 +72,24 @@ async def main():
 asyncio.run(main())
 ```
 
+For a synchronous script, submit the request and block on the handle:
+
+```python
+import modelrunner_ai
+
+handle = modelrunner_ai.submit(
+    "bytedance/sdxl-lightning-4step",
+    arguments={"prompt": "two friends cooking together"}
+)
+
+result = handle.get()  # blocks until the request settles
+print(result["output"])
+```
+
+<Warning>
+  Use `submit()` + `handle.get()`, not `run()`. `run()` returns the queue envelope — `status`, `request_id`, `response_url`, and friends — as soon as the request is accepted, so it does not wait for the inference and `result["output"]` raises `KeyError`.
+</Warning>
+
 ## Tag requests with metadata
 
 Attach your own flat string map to a request — job ids, environments, batch labels — by passing `metadata` alongside `arguments`. It's supported on `run`, `submit`, and `submit_async`:
@@ -79,11 +97,13 @@ Attach your own flat string map to a request — job ids, environments, batch la
 ```python
 import modelrunner_ai
 
-result = modelrunner_ai.run(
+handle = modelrunner_ai.submit(
     "bytedance/sdxl-lightning-4step",
     arguments={"prompt": "two friends cooking together"},
     metadata={"project": "onboarding-demo", "env": "prod"},
 )
+
+result = handle.get()  # blocks until the request settles
 print(result["output"])
 ```
 
@@ -213,8 +233,10 @@ import modelrunner_ai
 
 input_image = modelrunner_ai.upload_file("./image.jpg")
 print(input_image)
-response = modelrunner_ai.run("swook/inspyrenet", arguments={"image_path": input_image})
-print(response["output"])
+
+handle = modelrunner_ai.submit("swook/inspyrenet", arguments={"image_path": input_image})
+result = handle.get()
+print(result["output"])
 ```
 
 </CodeGroup>

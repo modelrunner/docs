@@ -114,10 +114,11 @@ const result = await modelrunner.subscribe("swook/inspyrenet", {
 import modelrunner_ai
 
 file_url = modelrunner_ai.upload_file("./input.png")
-result = modelrunner_ai.run(
+handle = modelrunner_ai.submit(
     "swook/inspyrenet",
     arguments={"image_path": file_url},
 )
+result = handle.get()
 ```
 
 </CodeGroup>
