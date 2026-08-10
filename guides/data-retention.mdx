@@ -53,7 +53,7 @@ result = modelrunner_ai.subscribe(
 </CodeGroup>
 
 <Note>
-  **The typed Python options need `modelrunner-ai` 0.5.1 or newer.** `lifecycle` and `store_io` are available on `run`, `submit`, `subscribe` and `stream`, sync and async. A raw `headers={...}` argument also works from 0.5.0 onward, as an escape hatch for any header not yet typed.
+  **Needs `modelrunner-ai` 0.5.0 or newer**, where `lifecycle`, `store_io` and a raw `headers={...}` escape hatch all arrived together — on `run`, `submit`, `subscribe` and `stream`, sync and async. Prefer **0.5.1 or newer**: before that, `expires_in="never"` sent a 100-year duration, roughly twenty times the maximum in the table above, instead of the `null` that means no expiration.
 
   `expires_in` takes an integer number of seconds or one of `1h`, `1d`, `7d`, `30d`, `1y`, `never`. Use `"never"` for no expiration — it sends the `null` in the table above rather than a large number. `None` is not a valid value. Leaving `store_io` unset keeps whatever your account default is.
 
@@ -75,9 +75,9 @@ The same header works on [file uploads](/guides/file-uploads), setting an expira
 One exception is worth knowing: **an uploaded file that you then use as a request input stops expiring.** Another request may reference the same upload, so we stop treating it as disposable. The same applies to a file you favorite, tag, or use as a model, wrapper or collection image. Delete those explicitly when you are done with them.
 
 <Note>
-  For a [multipart upload](/guides/file-uploads#multipart-upload-large-files), send the header on `POST /storage/upload/complete` instead — that is the call that records the file.
+  For a [multipart upload](/guides/file-uploads#multipart-upload-large-files), the preference rides on `POST /storage/upload/complete` instead of the initiate — that is the call that creates the file's row.
 
-  One client-side gap, and it is in **every** current SDK: multipart completion goes straight to the presigned URL rather than through the API, so no SDK applies a lifecycle to an upload that large. The JavaScript SDK's `storage.upload()` switches to multipart above 90 MB and accepts a `lifecycle` option that is then dropped; the Python SDK does not offer one on uploads at all. Use the raw HTTP flow, or delete large uploads explicitly.
+  Both clients handle that for you, so a large upload keeps its expiration: pass `lifecycle` to `upload`, `upload_file` or `upload_image` on `modelrunner-ai` **0.6.0 or newer**, or to `storage.upload()` on the JavaScript client **1.3.0 or newer**. Both switch to multipart above 90 MB. On earlier versions the preference did not survive a large upload — the JavaScript client accepted the option and dropped it, and Python had no upload option at all — so upgrade, or drive the raw HTTP flow and set the header on the complete call yourself.
 </Note>
 
 ### Access controls are not supported
