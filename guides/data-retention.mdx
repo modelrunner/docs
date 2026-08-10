@@ -40,31 +40,24 @@ const result = await modelrunner.subscribe('owner/model-name', {
 ```
 
 ```python Python
-import json
-import os
+import modelrunner_ai
+from modelrunner_ai import StorageSettings
 
-import httpx
-
-response = httpx.post(
-    "https://queue.modelrunner.run/owner/model-name",
-    json={"prompt": "a sunset"},
-    headers={
-        "Authorization": f"Key {os.environ['MODELRUNNER_KEY']}",
-        "X-Modelrunner-Object-Lifecycle-Preference": json.dumps(
-            {"expiration_duration_seconds": 3600}
-        ),
-    },
+result = modelrunner_ai.subscribe(
+    "owner/model-name",
+    arguments={"prompt": "a sunset"},
+    lifecycle=StorageSettings(expires_in="1h"),  # or expires_in=3600
 )
-response.raise_for_status()
-request_id = response.json()["request_id"]
 ```
 
 </CodeGroup>
 
 <Note>
-  **The Python SDK cannot send these headers.** `modelrunner_ai.subscribe()` — and `run`, `submit`, and `stream` — take no `headers` argument, so passing one raises `TypeError: SyncClient.subscribe() got an unexpected keyword argument 'headers'`. The only headers those calls set are `Authorization`, `User-Agent`, and the two behind the `hint` and `priority` arguments. Send the request over raw HTTP as above, or set an account-wide default in the [dashboard](#setting-a-default-for-your-account). `httpx` is already a dependency of `modelrunner-ai`, so there is nothing extra to install.
+  **Needs `modelrunner-ai` 0.5.0 or newer**, where `lifecycle`, `store_io` and a raw `headers={...}` escape hatch all arrived together — on `run`, `submit`, `subscribe` and `stream`, sync and async. Prefer **0.5.1 or newer**: before that, `expires_in="never"` sent a 100-year duration, roughly twenty times the maximum in the table above, instead of the `null` that means no expiration.
 
-  The submit returns immediately with `request_id` and the polling URLs — see the [request lifecycle](/guides/request-lifecycle) for reading the result back. The JavaScript client does support a per-request `headers` option, as shown above.
+  `expires_in` takes an integer number of seconds or one of `1h`, `1d`, `7d`, `30d`, `1y`, `never`. Use `"never"` for no expiration — it sends the `null` in the table above rather than a large number. `None` is not a valid value. Leaving `store_io` unset keeps whatever your account default is.
+
+  On **0.4.x and earlier there is no supported way to send these headers** — `headers=` did not exist, and passing it raises `TypeError: SyncClient.subscribe() got an unexpected keyword argument 'headers'`. Upgrade, send the request over raw HTTP as in the cURL example, or set an account-wide default in the [dashboard](#setting-a-default-for-your-account).
 </Note>
 
 | Field | Notes |
@@ -82,9 +75,9 @@ The same header works on [file uploads](/guides/file-uploads), setting an expira
 One exception is worth knowing: **an uploaded file that you then use as a request input stops expiring.** Another request may reference the same upload, so we stop treating it as disposable. The same applies to a file you favorite, tag, or use as a model, wrapper or collection image. Delete those explicitly when you are done with them.
 
 <Note>
-  For a [multipart upload](/guides/file-uploads#multipart-upload-large-files), send the header on `POST /storage/upload/complete` instead — that is the call that records the file.
+  For a [multipart upload](/guides/file-uploads#multipart-upload-large-files), the preference rides on `POST /storage/upload/complete` instead of the initiate — that is the call that creates the file's row.
 
-  One client-side gap: the JavaScript SDK's `storage.upload()` switches to multipart above 90 MB and completes that upload without going through the API, so a `lifecycle` option is not applied to files that large. Use the raw HTTP flow, or delete large uploads explicitly.
+  Both clients handle that for you, so a large upload keeps its expiration: pass `lifecycle` to `upload`, `upload_file` or `upload_image` on `modelrunner-ai` **0.6.0 or newer**, or to `storage.upload()` on the JavaScript client **1.3.0 or newer**. Both switch to multipart above 90 MB. On earlier versions the preference did not survive a large upload — the JavaScript client accepted the option and dropped it, and Python had no upload option at all — so upgrade, or drive the raw HTTP flow and set the header on the complete call yourself.
 </Note>
 
 ### Access controls are not supported
@@ -115,19 +108,13 @@ const result = await modelrunner.subscribe('owner/model-name', {
 ```
 
 ```python Python
-import os
+import modelrunner_ai
 
-import httpx
-
-response = httpx.post(
-    "https://queue.modelrunner.run/owner/model-name",
-    json={"prompt": "a sunset"},
-    headers={
-        "Authorization": f"Key {os.environ['MODELRUNNER_KEY']}",
-        "X-Modelrunner-Store-IO": "0",
-    },
+result = modelrunner_ai.subscribe(
+    "owner/model-name",
+    arguments={"prompt": "a sunset"},
+    store_io=False,
 )
-response.raise_for_status()
 ```
 
 </CodeGroup>
