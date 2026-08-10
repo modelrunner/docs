@@ -14,19 +14,22 @@ Connection uses **OAuth 2.1** with Dynamic Client Registration ([RFC 7591](https
 
 <Tabs>
   <Tab title="Claude Desktop">
-    Add ModelRunner to your `claude_desktop_config.json`:
+    Claude Desktop and claude.ai take a remote MCP server as a **custom connector**, not as a
+    `claude_desktop_config.json` entry — that file launches local (stdio) servers only, via
+    `command` / `args`.
 
-    ```json
-    {
-      "mcpServers": {
-        "modelrunner": {
-          "url": "https://mcp.modelrunner.run/mcp"
-        }
-      }
-    }
-    ```
+    1. Open **Settings → Connectors**.
+    2. Click **Add**, then **Add custom connector**.
+    3. Paste `https://mcp.modelrunner.run/mcp` and confirm.
 
-    Restart Claude Desktop. On the first tool call, you'll be redirected to ModelRunner to authorize the client.
+    Sign in to ModelRunner when the authorization window opens. Custom connector availability
+    follows your Claude plan — see Anthropic's [custom connectors
+    guide](https://support.claude.com/en/articles/11175166-about-custom-connectors-remote-mcp-servers).
+
+    <Note>
+      Prefer to keep everything in `claude_desktop_config.json`? Bridge the remote endpoint through
+      a local stdio process with `mcp-remote` — see the config-file example just below the tabs.
+    </Note>
   </Tab>
   <Tab title="Claude Code">
     ```bash
