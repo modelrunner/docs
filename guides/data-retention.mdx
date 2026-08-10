@@ -40,31 +40,24 @@ const result = await modelrunner.subscribe('owner/model-name', {
 ```
 
 ```python Python
-import json
-import os
+import modelrunner_ai
+from modelrunner_ai import StorageSettings
 
-import httpx
-
-response = httpx.post(
-    "https://queue.modelrunner.run/owner/model-name",
-    json={"prompt": "a sunset"},
-    headers={
-        "Authorization": f"Key {os.environ['MODELRUNNER_KEY']}",
-        "X-Modelrunner-Object-Lifecycle-Preference": json.dumps(
-            {"expiration_duration_seconds": 3600}
-        ),
-    },
+result = modelrunner_ai.subscribe(
+    "owner/model-name",
+    arguments={"prompt": "a sunset"},
+    lifecycle=StorageSettings(expires_in="1h"),  # or expires_in=3600
 )
-response.raise_for_status()
-request_id = response.json()["request_id"]
 ```
 
 </CodeGroup>
 
 <Note>
-  **The Python SDK cannot send these headers.** `modelrunner_ai.subscribe()` — and `run`, `submit`, and `stream` — take no `headers` argument, so passing one raises `TypeError: SyncClient.subscribe() got an unexpected keyword argument 'headers'`. The only headers those calls set are `Authorization`, `User-Agent`, and the two behind the `hint` and `priority` arguments. Send the request over raw HTTP as above, or set an account-wide default in the [dashboard](#setting-a-default-for-your-account). `httpx` is already a dependency of `modelrunner-ai`, so there is nothing extra to install.
+  **The typed Python options need `modelrunner-ai` 0.5.1 or newer.** `lifecycle` and `store_io` are available on `run`, `submit`, `subscribe` and `stream`, sync and async. A raw `headers={...}` argument also works from 0.5.0 onward, as an escape hatch for any header not yet typed.
 
-  The submit returns immediately with `request_id` and the polling URLs — see the [request lifecycle](/guides/request-lifecycle) for reading the result back. The JavaScript client does support a per-request `headers` option, as shown above.
+  `expires_in` takes an integer number of seconds or one of `1h`, `1d`, `7d`, `30d`, `1y`, `never`. Use `"never"` for no expiration — it sends the `null` in the table above rather than a large number. `None` is not a valid value. Leaving `store_io` unset keeps whatever your account default is.
+
+  On **0.4.x and earlier there is no supported way to send these headers** — `headers=` did not exist, and passing it raises `TypeError: SyncClient.subscribe() got an unexpected keyword argument 'headers'`. Upgrade, send the request over raw HTTP as in the cURL example, or set an account-wide default in the [dashboard](#setting-a-default-for-your-account).
 </Note>
 
 | Field | Notes |
@@ -84,7 +77,7 @@ One exception is worth knowing: **an uploaded file that you then use as a reques
 <Note>
   For a [multipart upload](/guides/file-uploads#multipart-upload-large-files), send the header on `POST /storage/upload/complete` instead — that is the call that records the file.
 
-  One client-side gap: the JavaScript SDK's `storage.upload()` switches to multipart above 90 MB and completes that upload without going through the API, so a `lifecycle` option is not applied to files that large. Use the raw HTTP flow, or delete large uploads explicitly.
+  One client-side gap, and it is in **every** current SDK: multipart completion goes straight to the presigned URL rather than through the API, so no SDK applies a lifecycle to an upload that large. The JavaScript SDK's `storage.upload()` switches to multipart above 90 MB and accepts a `lifecycle` option that is then dropped; the Python SDK does not offer one on uploads at all. Use the raw HTTP flow, or delete large uploads explicitly.
 </Note>
 
 ### Access controls are not supported
@@ -115,19 +108,13 @@ const result = await modelrunner.subscribe('owner/model-name', {
 ```
 
 ```python Python
-import os
+import modelrunner_ai
 
-import httpx
-
-response = httpx.post(
-    "https://queue.modelrunner.run/owner/model-name",
-    json={"prompt": "a sunset"},
-    headers={
-        "Authorization": f"Key {os.environ['MODELRUNNER_KEY']}",
-        "X-Modelrunner-Store-IO": "0",
-    },
+result = modelrunner_ai.subscribe(
+    "owner/model-name",
+    arguments={"prompt": "a sunset"},
+    store_io=False,
 )
-response.raise_for_status()
 ```
 
 </CodeGroup>
