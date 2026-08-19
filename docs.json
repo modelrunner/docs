@@ -37,6 +37,7 @@
           {
             "group": "Platform features",
             "pages": [
+              "guides/language-models",
               "guides/file-uploads",
               "guides/webhooks",
               "guides/data-retention",

@@ -1,0 +1,158 @@
+---
+title: "Language models (chat API)"
+description: "Run LLMs through an OpenAI-compatible chat completions endpoint — one base URL per model, your existing SDKs and tools, streaming, tool calling and JSON mode — plus the Anthropic-compatible endpoint Claude Code uses."
+icon: "message-lines"
+---
+
+Language models (the `text-to-text` rows in the catalog — see [LLM API](https://modelrunner.ai/llm-api)) are **not** served through the asynchronous queue described in [Request lifecycle](/guides/request-lifecycle). Each one is a **synchronous, OpenAI-compatible chat completions endpoint at the model's own URL**:
+
+```text
+POST https://queue.modelrunner.run/{owner}/{alias}/chat/completions
+```
+
+OpenAI SDKs and OpenAI-compatible tools append `/chat/completions` to their configured base URL themselves, so connecting is three values:
+
+| Setting | Value |
+| --- | --- |
+| `base_url` | `https://queue.modelrunner.run/{owner}/{alias}` |
+| `api_key` | your ModelRunner API key (sent as `Authorization: Bearer <key>`; `Key <key>` also works) |
+| `model` | `{owner}/{alias}` — optional, the URL is authoritative; if present it must match |
+
+Switch models by changing the URL. Nothing else changes.
+
+<Warning>
+  Do **not** submit a language model to the queue path (`POST https://queue.modelrunner.run/{owner}/{alias}`) — it returns `400` for these rows. There is no `status_url` to poll: one POST returns the reply, or streams it.
+</Warning>
+
+## Quickstart
+
+<CodeGroup>
+
+```python Python (openai SDK)
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://queue.modelrunner.run/google/gemini-3.7-flash",
+    api_key=os.environ["MODELRUNNER_API_KEY"],
+)
+
+completion = client.chat.completions.create(
+    model="google/gemini-3.7-flash",
+    messages=[{"role": "user", "content": "Explain what an API rate limit is in two sentences."}],
+)
+print(completion.choices[0].message.content)
+```
+
+```javascript JavaScript (openai SDK)
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  baseURL: "https://queue.modelrunner.run/google/gemini-3.7-flash",
+  apiKey: process.env.MODELRUNNER_API_KEY,
+});
+
+const completion = await client.chat.completions.create({
+  model: "google/gemini-3.7-flash",
+  messages: [{ role: "user", content: "Explain what an API rate limit is in two sentences." }],
+});
+const reply = completion.choices[0].message.content;
+```
+
+```bash cURL
+curl https://queue.modelrunner.run/google/gemini-3.7-flash/chat/completions \
+  -H "Authorization: Bearer $MODELRUNNER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{ "role": "user", "content": "Explain what an API rate limit is in two sentences." }]
+  }'
+```
+
+</CodeGroup>
+
+Every model page has a **Connect** section with these quickstarts filled in for that model, plus the verified configs for LangChain, the Vercel AI SDK, LiteLLM, Aider and Claude Code.
+
+## Streaming
+
+Set `"stream": true` and the reply arrives as Server-Sent Events (`data:` frames, terminated by `data: [DONE]`). `stream_options: {"include_usage": true}` adds a final usage frame.
+
+```python
+for chunk in client.chat.completions.create(
+    model="google/gemini-3.7-flash",
+    messages=[{"role": "user", "content": "Count from 1 to 20."}],
+    stream=True,
+):
+    print(chunk.choices[0].delta.content or "", end="")
+```
+
+<Note>
+  **Non-streaming calls time out at roughly 290 seconds.** The connection stays silent while the model generates, and the edge closes silent responses — so stream anything that can run long (thinking models, large outputs).
+</Note>
+
+## Tool calling, JSON mode, reasoning
+
+Parameters the platform does not interpret are forwarded to the model unchanged — the model is the authority on what it accepts:
+
+- **Tool calling** — an OpenAI-format `tools` array plus `tool_choice` (`auto`, `none`, `required`, or a specific tool). The reply carries `tool_calls`; send the result back as a `tool` message with the matching `tool_call_id`.
+- **JSON mode** — `response_format: {"type": "json_object"}`. Some thinking models only honour it with thinking off; the model page says so.
+- **Reasoning** — thinking models take `reasoning_effort` (`low` / `medium` / `high`, or a wider set on some models). Thinking tokens bill at the model's **output** rate and draw from `max_tokens`, so leave headroom; `usage.completion_tokens_details.reasoning_tokens` reports how many went to thinking.
+- **Vision** — models whose input modalities include images accept OpenAI multimodal `content` parts (`{"type": "image_url", "image_url": {"url": "https://…"}}`, `data:` URLs included; the request body limit is 10 MB).
+
+A reserved top-level `metadata` object (flat string map, ≤16 keys) is stored on the request and never sent to the model — the same tagging mechanism as the queue path. Two vendor-side extras are stripped deliberately: `store` (conversation retention outside your [data retention](/guides/data-retention) settings) and `enable_search` (billed outside token usage).
+
+## Billing
+
+Every call is a normal request: it appears in your dashboard and in `GET https://queue.modelrunner.run/requests/{id}` (the response `id` is `chatcmpl-<requestId>`). Billing is **per token** from the model's own reported usage at the rates on its page — separate prices per 1M input and output tokens, a reduced rate for cached input where the model supports it — exact to six decimals, with no per-request minimum. Disconnecting from a stream after output has started is not a refund: the platform finishes the upstream call and bills its exact usage.
+
+## Errors
+
+This surface answers in the OpenAI error envelope, not the [house shape](/api-reference/errors):
+
+```json
+{ "error": { "message": "…", "type": "…", "param": null, "code": "…" } }
+```
+
+| Case | HTTP | `type` / `code` |
+| --- | --- | --- |
+| Bad or missing key | 401 | `invalid_request_error` / `invalid_api_key` |
+| Unknown model, or a model that is not a language model | 404 | `invalid_request_error` / `model_not_found` |
+| Body `model` does not match the URL, invalid body | 400 | `invalid_request_error` |
+| Insufficient balance | 429 | `insufficient_quota` / `insufficient_quota` |
+| Upstream rate limit | 429 | `rate_limit_error` / `rate_limit_exceeded` |
+| Model temporarily unavailable, or the non-streaming time limit | 502 | `api_error` / `upstream_error` |
+
+OpenAI SDKs retry 429 and 5xx automatically, which is the behaviour you want here.
+
+## Claude Code and the Anthropic-compatible endpoint
+
+Claude Code configures its model through `ANTHROPIC_BASE_URL`, which must speak the Anthropic Messages API — so every language model also answers a Messages-compatible endpoint at the same base URL:
+
+```text
+POST https://queue.modelrunner.run/{owner}/{alias}/v1/messages
+```
+
+It is a translator over the chat endpoint above: same key, same request row, same bill. To point Claude Code at a model:
+
+```bash
+export ANTHROPIC_BASE_URL=https://queue.modelrunner.run/z-ai/glm-5.2
+export ANTHROPIC_AUTH_TOKEN=<your ModelRunner API key>
+export ANTHROPIC_MODEL=z-ai/glm-5.2
+# optional — send Claude Code's background and sub-agent calls to the same model
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=z-ai/glm-5.2
+export CLAUDE_CODE_SUBAGENT_MODEL=z-ai/glm-5.2
+claude
+```
+
+The official `anthropic` SDKs work the same way (`base_url` \+ `api_key`). `ANTHROPIC_API_KEY` is accepted too. Text, images, tool use and tool results, system prompts, stop sequences, streaming and the thinking/effort settings translate; `max_tokens` is clamped to the model's published output ceiling; the body `model` is ignored in favour of the URL. Unsupported content kinds (documents, server-side tools) are refused with a `400` that names them rather than silently dropped. Errors use the Messages envelope (`{ "type": "error", "error": { "type", "message" } }`), and an insufficient balance is reported the way the Messages API reports it — `400 invalid_request_error`.
+
+<Note>
+  Claude Code will warn that it does not recognise the model name and assume a 200k-token context window; set `CLAUDE_CODE_MAX_CONTEXT_TOKENS` to the model's real window (shown on its page).
+</Note>
+
+## From an MCP client
+
+The [MCP server](/guides/mcp-server)'s `run_model` tool runs language models too: pass `input: { "messages": [ … ] }` and the reply comes back in the same call (status `COMPLETED`) rather than as a request to poll.
+
+## Which model?
+
+The [LLM API](https://modelrunner.ai/llm-api) page lists every language model with its per-1M input and output rates, context window and features, and each model page carries a cost estimator, a tier comparison and a sample conversation. Use the cheapest tier for high-volume classification and extraction, a general tier for everyday summarisation and chat features, and a thinking model for non-trivial coding and multi-step agent loops.
