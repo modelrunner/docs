@@ -1,6 +1,6 @@
 ---
 title: "Language models (chat API)"
-description: "Run LLMs through an OpenAI-compatible chat completions endpoint — one base URL per model, your existing SDKs and tools, streaming, tool calling and JSON mode — plus the Anthropic-compatible endpoint Claude Code uses."
+description: "Run LLMs through an OpenAI-compatible chat completions endpoint — a base URL per model or one /v1 base for the whole catalog with GET /v1/models discovery (GitHub Copilot-ready), streaming, tool calling and JSON mode — plus the Anthropic-compatible endpoint Claude Code uses."
 icon: "message-lines"
 ---
 
@@ -71,6 +71,29 @@ curl https://queue.modelrunner.run/google/gemini-3.7-flash/chat/completions \
 </CodeGroup>
 
 Every model page has a **Connect** section with these quickstarts filled in for that model, plus the verified configs for LangChain, the Vercel AI SDK, LiteLLM, Aider and Claude Code.
+
+## Model discovery and the platform base URL
+
+Tools with a custom-provider flow — GitHub Copilot's bring-your-own-model setup is the common case — probe `GET {base_url}/models` before the first call to discover model ids. Both base URLs answer it in the OpenAI list shape (with your API key; anonymous probes get a 401):
+
+```text
+GET https://queue.modelrunner.run/{owner}/{alias}/models   # that model, as a one-entry list
+GET https://queue.modelrunner.run/v1/models                # every public language model
+```
+
+The second is the **platform base URL**: one provider entry covers the whole catalog, and models added later show up in the list without touching your config.
+
+| Setting | Value |
+| --- | --- |
+| `base_url` | `https://queue.modelrunner.run/v1` |
+| `api_key` | your ModelRunner API key |
+| `model` | `{owner}/{alias}` — **required** on this base; `GET /v1/models` lists the ids |
+
+To add ModelRunner to GitHub Copilot in VS Code: open the Copilot Chat model picker → **Manage Models…** → choose the OpenAI-compatible provider, paste the base URL and your key, and pick models from the list Copilot fetches. Pointing Copilot at a single model's base URL works too — its `/models` answers with just that model.
+
+<Note>
+  The platform base is OpenAI-surface only (`POST /v1/chat/completions`, `model` in the body). The Anthropic-compatible endpoint described below stays per-model, so `ANTHROPIC_BASE_URL` keeps naming one model.
+</Note>
 
 ## Streaming
 
