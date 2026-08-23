@@ -28,6 +28,39 @@ mint dev
 
 View your local preview at `http://localhost:3000`.
 
+## Analytics
+
+PostHog is configured under `integrations.posthog` in `docs.json`, pointed at the
+**same project as the web app** — `ModelRunner Web`, project id `518635`, on US
+Cloud (`https://us.i.posthog.com`). The `phc_…` key is a publishable project key
+and is safe in the browser; Mintlify has no env-var substitution for it, so it
+lives in `docs.json` literally, same value as `POSTHOG_KEY` in the app's deploy
+env.
+
+Sharing one project is what makes a visitor the *same person* across the product
+and the docs, and it works because the docs are served from the **same origin**:
+nginx reverse-proxies `modelrunner.ai/docs` to `modelrunner.mintlify.dev` (see
+`deploy/nginx/conf.d/web.conf` in `modelrunner/mrun`), so the browser stays on
+`modelrunner.ai` the whole time. PostHog's cookie is named after the project key
+(`ph_<apiKey>_posthog`), so with an identical key on an identical origin the docs
+read the cookie the app already wrote — the `distinct_id`, the session, and the
+signed-in identity from the app's `posthog.identify()` all carry over with no
+cross-domain linking.
+
+Two consequences worth remembering before changing any of this:
+
+- **Do not move the docs to their own hostname.** Serving them from
+  `docs.modelrunner.ai` (retired, now a 301) or any other host would put the
+  cookie on a different domain and split one visitor into two people.
+- **`apiHost` must stay explicit.** Mintlify defaults to `https://app.posthog.com`;
+  the app ingests on `https://us.i.posthog.com`.
+
+The app suppresses analytics for internal accounts (`ANALYTICS_SUPPRESSED_USERNAMES`)
+and only enables PostHog in production. Mintlify can do neither — it has no view
+of the signed-in user — so docs traffic is tracked unconditionally, internal
+browsing included. Filter that out project-side in PostHog if it distorts a
+number.
+
 ## Publishing changes
 
 Install our GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app) to propagate changes from your repo to your deployment. Changes are deployed to production automatically after pushing to the default branch.

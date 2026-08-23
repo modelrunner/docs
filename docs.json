@@ -112,5 +112,11 @@
      "languages": ["curl", "python", "javascript"],
      "defaults": "all"
    }
+  },
+  "integrations": {
+    "posthog": {
+      "apiKey": "phc_xdh7FwyduKSaB5wLndEYCqdGB7uVqtvJvVmuVbSZPuqp",
+      "apiHost": "https://us.i.posthog.com"
+    }
   }
 }
