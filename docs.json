@@ -8,7 +8,6 @@
     "dark": "#0f172a"
   },
   "favicon": "/favicon.ico",
-
   "navigation": {
     "tabs": [
       {
@@ -64,8 +63,16 @@
             "group": "API documentation",
             "pages": [
               "api-reference/introduction",
+              "api-reference/request-semantics",
               "api-reference/errors"
             ]
+          },
+          {
+            "group": "Platform APIs",
+            "openapi": {
+              "source": "platform-openapi.json",
+              "directory": "api-reference/platform"
+            }
           }
         ]
       }
@@ -90,15 +97,15 @@
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {
@@ -109,9 +116,13 @@
   "playground": {
     "display": "interactive",
     "examples": {
-     "languages": ["curl", "python", "javascript"],
-     "defaults": "all"
-   }
+      "languages": [
+        "curl",
+        "python",
+        "javascript"
+      ],
+      "defaults": "all"
+    }
   },
   "integrations": {
     "posthog": {

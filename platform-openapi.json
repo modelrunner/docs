@@ -1,0 +1,1212 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ModelRunner Platform API",
+    "version": "1.0.0",
+    "description": "Platform APIs: model catalog and search, model pricing rate cards, account balance and usage, and webhook delivery management. Catalog reads are public; account-scoped routes authenticate with your API key (`Authorization: Key <MODELRUNNER_KEY>`). Request lifecycle endpoints (submit/status/result and the request list) live on the queue host \u2014 see the Queue API reference."
+  },
+  "servers": [
+    {
+      "url": "https://api.modelrunner.run"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "Use the format: Key modelrunner_key"
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Human-readable error message."
+          },
+          "request_id": {
+            "type": "string",
+            "description": "Correlation id for support."
+          }
+        }
+      },
+      "Model": {
+        "type": "object",
+        "description": "A catalog model. Provider-facing internals (provider schemas, request/extraction config, field mappings) are never present on public responses; `providerRequestConfig` appears only as `{\"apiType\": \"chat_completions\"}` on chat-servable models. Additional descriptive fields may appear beyond those listed.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "alias": {
+            "type": "string",
+            "description": "May contain slashes. The user-facing endpoint is `ownerName/alias`."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": "string"
+          },
+          "shortDescription": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "thumbnailUrl": {
+            "type": "string"
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "useCases": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "inputModalities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outputModalities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "schema": {
+            "type": "object",
+            "description": "OpenAPI-style input/output schema for the model (`components.schemas.Input` / `Output`). The same document `GET /models/{owner}/{alias}/openapi.json` serves standalone.",
+            "additionalProperties": true
+          },
+          "pricingMode": {
+            "type": "string",
+            "enum": [
+              "per_second",
+              "per_output",
+              "resolution_tiered",
+              "per_output_second",
+              "per_megapixel",
+              "megapixel_tiered",
+              "per_token"
+            ]
+          },
+          "averageCost": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Observed average cost of one run (decimal string), where tracked."
+          },
+          "official": {
+            "type": "boolean"
+          },
+          "featured": {
+            "type": "boolean"
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Curated example request ids \u2014 fetch via the model detail page."
+          },
+          "contextWindow": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Chat-servable models only."
+          },
+          "maxOutputTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Chat-servable models only."
+          },
+          "providerRequestConfig": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Public callers see `{\"apiType\": \"chat_completions\"}` on chat-servable models, null otherwise."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ModelRateCard": {
+        "description": "Mode-specific rate card, discriminated on `pricingMode`. Deliberately structured rather than flattened to a single unit price: each mode's own fields carry its rates, so no mode can be misread through another's lens. All rates are decimal strings in USD.",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "pricingMode",
+              "pricePerOutput"
+            ],
+            "properties": {
+              "pricingMode": {
+                "const": "per_output"
+              },
+              "pricePerOutput": {
+                "type": "string",
+                "description": "Price per generated output."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "pricingMode",
+              "pricePerOutputSecond"
+            ],
+            "properties": {
+              "pricingMode": {
+                "const": "per_output_second"
+              },
+              "pricePerOutputSecond": {
+                "type": "string",
+                "description": "Price per second of generated media."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "pricingMode",
+              "pricePerMegapixel"
+            ],
+            "properties": {
+              "pricingMode": {
+                "const": "per_megapixel"
+              },
+              "pricePerMegapixel": {
+                "type": "string",
+                "description": "Price per output megapixel."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "pricingMode",
+              "pricePerSecond"
+            ],
+            "properties": {
+              "pricingMode": {
+                "const": "per_second"
+              },
+              "pricePerSecond": {
+                "type": "string",
+                "description": "Price per second of compute."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "pricingMode",
+              "resolutionPricing"
+            ],
+            "properties": {
+              "pricingMode": {
+                "const": "resolution_tiered"
+              },
+              "resolutionPricing": {
+                "type": "object",
+                "properties": {
+                  "tiers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "preset": {
+                          "type": "string"
+                        },
+                        "pricePerOutputSecond": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  },
+                  "defaultPricePerOutputSecond": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "pricingMode",
+              "megapixelPricing"
+            ],
+            "properties": {
+              "pricingMode": {
+                "const": "megapixel_tiered"
+              },
+              "megapixelPricing": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Tiered (`maxMegapixels` thresholds) or exact (`megapixels` keys) price table with an optional `defaultPrice`."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "pricingMode",
+              "tokenPricing"
+            ],
+            "properties": {
+              "pricingMode": {
+                "const": "per_token"
+              },
+              "tokenPricing": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Per-1M-token rates by bucket (`text.input`, `text.output`, `cachedInput`, \u2026), optional rounding increment, and an optional `displayExample` for non-text outputs."
+              }
+            }
+          }
+        ]
+      },
+      "ModelPricingEntry": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "`ownerName/alias`, echoed as requested."
+          },
+          "rateCard": {
+            "$ref": "#/components/schemas/ModelRateCard"
+          },
+          "pricingRules": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Input/output-conditional overrides of the rate the rateCard names: `dimensions` resolved from the request select a `rate` from `rules`, with a `default` fallback. When present, the rateCard carries the base rate.",
+            "additionalProperties": true
+          },
+          "averageCost": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Observed average cost of one run (decimal string), where the catalog tracks it."
+          },
+          "currency": {
+            "const": "USD"
+          }
+        }
+      },
+      "SearchResultItem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "model",
+              "wrapper"
+            ]
+          },
+          "endpoint": {
+            "type": "string",
+            "description": "`ownerName/alias` \u2014 the value you submit requests to."
+          },
+          "name": {
+            "type": "string"
+          },
+          "shortDescription": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "useCases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "inputModalities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outputModalities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Models only."
+          },
+          "thumbnailUrl": {
+            "type": "string"
+          },
+          "rootModel": {
+            "type": "string",
+            "description": "Model family key \u2014 results sharing it are variants (price/speed tiers)."
+          },
+          "defaultBaseModel": {
+            "type": "string",
+            "description": "Wrappers only: the default base model's endpoint."
+          },
+          "pricing": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string"
+              },
+              "averageCost": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            }
+          },
+          "score": {
+            "type": "number",
+            "description": "Full-text rank, comparable across models and wrappers."
+          },
+          "matchedOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Which fields matched the query ('fulltext' = stemmed match only)."
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "slug": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "examplePrompts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Real prompts from curated example runs."
+          }
+        },
+        "additionalProperties": true
+      },
+      "WebhookDelivery": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Also the `webhook-id` header value \u2014 your dedupe key."
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string",
+            "enum": [
+              "start",
+              "completed"
+            ]
+          },
+          "url": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "delivering",
+              "delivered",
+              "failed"
+            ]
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "lastResponseStatus": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nextAttemptAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "deliveredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/models": {
+      "get": {
+        "summary": "List Models",
+        "description": "Paginated public model catalog with free-text search and structured filters. Private models are unlisted here (direct reads by endpoint still resolve them \u2014 'private' means unlisted, not access-controlled).",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Free-text search over name, alias, description, owner, category, tags."
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "inputModality",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "e.g. text, image, video, audio."
+          },
+          {
+            "name": "outputModality",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "capability",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "style": "form",
+            "explode": true
+          },
+          {
+            "name": "featured",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One catalog page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "page": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "totalPages": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Model"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models/pricing": {
+      "get": {
+        "summary": "Get Model Pricing",
+        "description": "Batch pricing read: a versioned, `pricingMode`-discriminated rate card per endpoint. Repeat the `endpoint` parameter for a batch (aliases may contain slashes, so endpoints are never comma-joined). Endpoints that resolve to no priceable model are reported under `notFound` instead of failing the batch.",
+        "parameters": [
+          {
+            "name": "endpoint",
+            "in": "query",
+            "required": true,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 50
+            },
+            "description": "`ownerName/alias`, repeated. At most 50 per request."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rate cards for the resolved endpoints.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "const": 1
+                    },
+                    "prices": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ModelPricingEntry"
+                      }
+                    },
+                    "notFound": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No `endpoint` parameter, or more than 50.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models/{ownerName}/{alias}/openapi.json": {
+      "get": {
+        "summary": "Get Model OpenAPI Schema",
+        "description": "The model's machine-readable OpenAPI document: its input schema (`components.schemas.Input`), output schema, and endpoint paths. What code generators and AI assistants should consume before calling a model. `alias` may itself contain slashes.",
+        "parameters": [
+          {
+            "name": "ownerName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "alias",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An OpenAPI 3 document describing the model.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown model endpoint.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search": {
+      "get": {
+        "summary": "Search Catalog",
+        "description": "Unified free-text search across models and wrappers, with match provenance, comparable relevance scores, pricing context, and real example prompts. Recall-first: prefer 2-4 plain keywords over long natural-language phrases.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ranked results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SearchResultItem"
+                      }
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/billing/balance": {
+      "get": {
+        "summary": "Get Balance",
+        "description": "The authenticated account's current credit balance, as an exact decimal string. An account that has never been credited reads as `\"0\"`.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current balance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "balance": {
+                      "type": "string",
+                      "examples": [
+                        "12.50000000"
+                      ]
+                    },
+                    "currency": {
+                      "const": "USD"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/billing/usage-summary": {
+      "get": {
+        "summary": "Get Usage Summary",
+        "description": "Spend and request statistics for the authenticated account over a trailing window. `totalSpent` sums what was actually charged (exact decimal string); `successRate` excludes failed generations (`billingStatus: 'failed'`), not just failed requests.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 7,
+              "maximum": 365
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usage summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "period": {
+                      "type": "string",
+                      "examples": [
+                        "7d"
+                      ]
+                    },
+                    "totalSpent": {
+                      "type": "string"
+                    },
+                    "requestCount": {
+                      "type": "integer"
+                    },
+                    "successRate": {
+                      "type": "number",
+                      "description": "Percent, one decimal."
+                    },
+                    "topModels": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "modelEndpoint": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "integer"
+                          },
+                          "totalCost": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/default/secret": {
+      "get": {
+        "summary": "Get Webhook Secret",
+        "description": "The account's webhook signing secret (`{ \"key\": \"whsec_\u2026\" }`), used to verify Standard-Webhooks signatures on deliveries. Created on first read.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The signing secret.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/default/secret/rotate": {
+      "post": {
+        "summary": "Rotate Webhook Secret",
+        "description": "Rotates the signing secret and returns the new value. Deliveries signed with the old secret stop verifying immediately.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new signing secret.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/deliveries": {
+      "get": {
+        "summary": "List Webhook Deliveries",
+        "description": "The account's webhook delivery log, newest first.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "delivering",
+                "delivered",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of deliveries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "page": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "totalPages": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/WebhookDelivery"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/deliveries/{deliveryId}/replay": {
+      "post": {
+        "summary": "Replay Webhook Delivery",
+        "description": "Re-queues one delivery for another attempt with a fresh signature. Owner-only.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "deliveryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The delivery, reset for redelivery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookDelivery"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown delivery id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

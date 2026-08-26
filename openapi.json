@@ -6,10 +6,14 @@
     "description": "Endpoints to create, track, retrieve, and cancel inference requests on ModelRunner."
   },
   "servers": [
-    { "url": "https://queue.modelrunner.run" }
+    {
+      "url": "https://queue.modelrunner.run"
+    }
   ],
   "security": [
-    { "apiKeyAuth": [] }
+    {
+      "apiKeyAuth": []
+    }
   ],
   "paths": {
     "/{ownerName}/{modelName}": {
@@ -17,8 +21,12 @@
         "summary": "Create Request",
         "description": "Enqueue a new inference job for the specified model. Request body must match the model's PredictionRequest schema.",
         "parameters": [
-          { "$ref": "#/components/parameters/ownerName" },
-          { "$ref": "#/components/parameters/modelName"}
+          {
+            "$ref": "#/components/parameters/ownerName"
+          },
+          {
+            "$ref": "#/components/parameters/modelName"
+          }
         ],
         "requestBody": {
           "required": true,
@@ -37,13 +45,21 @@
             "description": "Request created",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CreateRequestResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRequestResponse"
+                }
               }
             }
           },
-          "402": { "$ref": "#/components/responses/InsufficientBalance" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "400": { "$ref": "#/components/responses/BadRequest" }
+          "402": {
+            "$ref": "#/components/responses/InsufficientBalance"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
         }
       }
     },
@@ -52,21 +68,33 @@
         "summary": "Get Request Status",
         "description": "Check the current status of an inference request.",
         "parameters": [
-          { "$ref": "#/components/parameters/ownerName" },
-          { "$ref": "#/components/parameters/modelName" },
-          { "$ref": "#/components/parameters/requestId" }
+          {
+            "$ref": "#/components/parameters/ownerName"
+          },
+          {
+            "$ref": "#/components/parameters/modelName"
+          },
+          {
+            "$ref": "#/components/parameters/requestId"
+          }
         ],
         "responses": {
           "200": {
             "description": "Current request status",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CreateRequestResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/CreateRequestResponse"
+                }
               }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "400": { "$ref": "#/components/responses/BadRequest" }
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
         }
       }
     },
@@ -75,46 +103,429 @@
         "summary": "Get Request Result",
         "description": "Retrieve the final output and metadata for a completed request.",
         "parameters": [
-          { "$ref": "#/components/parameters/ownerName" },
-          { "$ref": "#/components/parameters/modelName" },
-          { "$ref": "#/components/parameters/requestId" }
+          {
+            "$ref": "#/components/parameters/ownerName"
+          },
+          {
+            "$ref": "#/components/parameters/modelName"
+          },
+          {
+            "$ref": "#/components/parameters/requestId"
+          }
         ],
         "responses": {
           "200": {
             "description": "Completed result",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/GetResultResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/GetResultResponse"
+                }
               }
             }
           },
-          "409": { "$ref": "#/components/responses/NotCompleted" },
-          "402": { "$ref": "#/components/responses/InsufficientBalance" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "400": { "$ref": "#/components/responses/BadRequest" }
+          "409": {
+            "$ref": "#/components/responses/NotCompleted"
+          },
+          "402": {
+            "$ref": "#/components/responses/InsufficientBalance"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
         }
       }
     },
-    "/{ownerName}/{modelName}/requests/{requestId}/cancel": {
+    "/requests": {
       "get": {
-        "summary": "Cancel Request",
-        "description": "Attempt to cancel an in-queue or in-progress request. Returns the current status payload.",
+        "summary": "List Requests",
+        "description": "The authenticated account's requests, newest first. Filter by endpoint, status, or the `metadata` tags set at submit time (`metadata` is a URL-encoded JSON object of exact key/value matches, AND-combined). NOTE: read `billingStatus`, not `status`, to tell success from failure \u2014 a failed generation is `COMPLETED` + `billingStatus: 'failed'`.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
         "parameters": [
-          { "$ref": "#/components/parameters/ownerName" },
-          { "$ref": "#/components/parameters/modelName" },
-          { "$ref": "#/components/parameters/requestId" }
+          {
+            "name": "modelEndpoint",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "`ownerName/alias` of a model or wrapper."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "IN_QUEUE",
+                "IN_PROGRESS",
+                "COMPLETED",
+                "FAILED",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "name": "metadata",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "URL-encoded JSON object, e.g. `%7B%22batch%22%3A%22a1%22%7D` for `{\"batch\":\"a1\"}`."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 10
+            }
+          }
         ],
         "responses": {
           "200": {
-            "description": "Cancellation attempted; current status returned",
+            "description": "One page of the caller's requests.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CreateRequestResponse" }
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "page": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "totalPages": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RequestItem"
+                      }
+                    }
+                  }
+                }
               }
             }
           },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "400": { "$ref": "#/components/responses/BadRequest" }
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests/{requestId}": {
+      "get": {
+        "summary": "Get Request",
+        "description": "One request by id, owner-only. Same item shape (and the same `billingStatus` failure semantics) as the list.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown request id, or not the caller's request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests/{requestId}/payloads": {
+      "delete": {
+        "summary": "Delete Request Payloads",
+        "description": "Deletes the request's stored input/output payloads and its output media from the CDN. Irreversible. The request row itself is kept (soft purge) with `payloadsPurgedAt` set. Only terminal, already-charged requests can be purged. See the Data Retention guide for retention headers and account defaults.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Purge result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "request_id": {
+                      "type": "string"
+                    },
+                    "payloads_deleted": {
+                      "type": "boolean"
+                    },
+                    "cdn_delete_results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "url": {
+                            "type": "string"
+                          },
+                          "deleted": {
+                            "type": "boolean"
+                          },
+                          "error": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown request id, or not the caller's request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests/{requestId}/visibility": {
+      "patch": {
+        "summary": "Set Request Visibility",
+        "description": "Owner-controlled publication state. Requests default to private; `public: true` lets non-owners see this request through catalog preview surfaces (model example pages). This is publication, not sharing \u2014 public requests are readable by anyone.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "public"
+                ],
+                "properties": {
+                  "public": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown request id, or not the caller's request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/requests/stream": {
+      "get": {
+        "summary": "Stream Request Updates (SSE)",
+        "description": "Server-sent events for the authenticated account's requests: a `snapshot` event with the currently in-flight requests on connect, then an `update` event per status transition (terminal transitions included), with a heartbeat comment every 25s. This is an account-wide activity feed, not a per-request output stream. Authenticate with the `Authorization: Key \u2026` header or, where headers are unavailable (browser EventSource), the `modelrunner_jwt_token` query parameter.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/event-stream of `{type: 'snapshot', requests: RequestItem[]}` and `{type: 'update', request: RequestItem}` events.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, but not allowed for this caller.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -133,21 +544,31 @@
         "name": "ownerName",
         "in": "path",
         "required": true,
-        "schema": { "type": "string", "default": "bytedance" },
+        "schema": {
+          "type": "string",
+          "default": "bytedance"
+        },
         "description": "Model owner or organization name."
       },
       "modelName": {
         "name": "modelName",
         "in": "path",
         "required": true,
-        "schema": { "type": "string", "default": "sdxl-lightning-4step" },
+        "schema": {
+          "type": "string",
+          "default": "sdxl-lightning-4step"
+        },
         "description": "Model alias on ModelRunner."
       },
       "requestId": {
         "name": "requestId",
         "in": "path",
         "required": true,
-        "schema": { "type": "string", "minLength": 21, "maxLength": 21 },
+        "schema": {
+          "type": "string",
+          "minLength": 21,
+          "maxLength": 21
+        },
         "description": "The request identifier returned by Create Request."
       }
     },
@@ -156,7 +577,9 @@
         "description": "Invalid input or request body",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
           }
         }
       },
@@ -164,7 +587,9 @@
         "description": "Resource not found",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
           }
         }
       },
@@ -172,7 +597,9 @@
         "description": "Insufficient balance for request",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
           }
         }
       },
@@ -180,7 +607,9 @@
         "description": "Request is not completed",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
           }
         }
       }
@@ -189,85 +618,301 @@
       "PredictionRequest": {
         "type": "object",
         "properties": {
-            "prompt": { "type": "string"},
-            "negative_prompt": { "type": "string"},
-            "width": { "type": "number"},
-            "height": { "type": "number"},
-            "num_outputs": { "type": "number"},
-            "scheduler": { "type": "string"},
-            "num_inference_steps": { "type": "number"},
-            "guidance_scale": { "type": "number"},
-            "seed": { "type": "number"},
-            "disable_safety_checker": { "type": "string", "enum": ["false"] }
+          "prompt": {
+            "type": "string"
           },
+          "negative_prompt": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number"
+          },
+          "height": {
+            "type": "number"
+          },
+          "num_outputs": {
+            "type": "number"
+          },
+          "scheduler": {
+            "type": "string"
+          },
+          "num_inference_steps": {
+            "type": "number"
+          },
+          "guidance_scale": {
+            "type": "number"
+          },
+          "seed": {
+            "type": "number"
+          },
+          "disable_safety_checker": {
+            "type": "string",
+            "enum": [
+              "false"
+            ]
+          }
+        },
         "description": "Model-specific input. Validated against the model's PredictionRequest schema at runtime.",
         "default": {
-              "prompt": "two friends cooking together",
-              "negative_prompt": "worst quality, low quality, deformed, extra fingers",
-              "width": 1280,
-              "height": 1024,
-              "num_outputs": 1,
-              "scheduler": "K_EULER",
-              "num_inference_steps": 4,
-              "guidance_scale": 0,
-              "seed": 103,
-              "disable_safety_checker": "false"
-            }
+          "prompt": "two friends cooking together",
+          "negative_prompt": "worst quality, low quality, deformed, extra fingers",
+          "width": 1280,
+          "height": 1024,
+          "num_outputs": 1,
+          "scheduler": "K_EULER",
+          "num_inference_steps": 4,
+          "guidance_scale": 0,
+          "seed": 103,
+          "disable_safety_checker": "false"
+        }
       },
       "CreateRequestResponse": {
         "type": "object",
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED", "FAILED", "CANCELLED"]
+            "enum": [
+              "IN_QUEUE",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED"
+            ]
           },
-          "request_id": { "type": "string", "minLength": 21, "maxLength": 21 },
-          "response_url": { "type": "string", "format": "uri" },
-          "status_url": { "type": "string", "format": "uri" },
-          "cancel_url": { "type": "string", "format": "uri" },
-          "logs": { "type": "string" },
+          "request_id": {
+            "type": "string",
+            "minLength": 21,
+            "maxLength": 21
+          },
+          "response_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "status_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "cancel_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Reserved. Cancellation is not currently supported: this URL responds with the same body as status_url and does not stop the request. Kept for forward compatibility."
+          },
+          "logs": {
+            "type": "string"
+          },
           "metrics": {
             "type": "object",
             "properties": {
-              "inference_time": { "type": "number" }
+              "inference_time": {
+                "type": "number"
+              }
             }
           },
-          "queue_position": { "type": "number" }
+          "queue_position": {
+            "type": "number"
+          }
         },
-        "required": ["status", "request_id", "response_url", "status_url", "cancel_url"]
+        "required": [
+          "status",
+          "request_id",
+          "response_url",
+          "status_url",
+          "cancel_url"
+        ]
       },
       "GetResultResponse": {
         "type": "object",
         "properties": {
-          "id": { "type": "string", "minLength": 21, "maxLength": 21 },
-          "modelEndpoint": { "type": "string" },
+          "id": {
+            "type": "string",
+            "minLength": 21,
+            "maxLength": 21
+          },
+          "modelEndpoint": {
+            "type": "string"
+          },
           "status": {
             "type": "string",
-            "enum": ["IN_QUEUE", "IN_PROGRESS", "COMPLETED", "FAILED", "CANCELLED"]
+            "enum": [
+              "IN_QUEUE",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED"
+            ]
           },
           "output": {},
           "input": {},
-          "createdAt": { "type": "string", "format": "date-time" },
-          "inferenceTime": { "type": "number" },
-          "delayTime": { "type": "number" },
-          "updatedAt": { "type": "string", "format": "date-time" },
-          "logs": { "type": "string" },
-          "error": { "type": "string" }
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inferenceTime": {
+            "type": "number"
+          },
+          "delayTime": {
+            "type": "number"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "logs": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
         },
-        "required": ["id", "modelEndpoint", "status", "output", "input", "createdAt"]
+        "required": [
+          "id",
+          "modelEndpoint",
+          "status",
+          "output",
+          "input",
+          "createdAt"
+        ]
       },
       "ErrorResponse": {
         "type": "object",
         "properties": {
-          "error": { "type": "string" },
-          "message": { "type": "string" },
-          "statusCode": { "type": "number" },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "number"
+          },
           "details": {}
         },
-        "required": ["error", "message", "statusCode"]
+        "required": [
+          "error",
+          "message",
+          "statusCode"
+        ]
+      },
+      "RequestItem": {
+        "type": "object",
+        "description": "One inference request as returned by the list/detail/stream surfaces. IMPORTANT: `status` alone does not signal success \u2014 a failed generation is normalized to `status: COMPLETED` with `billingStatus: 'failed'`. Always read `billingStatus` (and `error`) on these surfaces.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "modelEndpoint": {
+            "type": "string",
+            "description": "The `owner/alias` endpoint that served the request (after any provider fallback)."
+          },
+          "requestedModelEndpoint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The endpoint originally requested, when a fallback served it. Null/absent otherwise."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "IN_QUEUE",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "FAILED",
+              "CANCELLED"
+            ]
+          },
+          "billingStatus": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "partial",
+              "charged",
+              "failed"
+            ],
+            "description": "The success discriminator: 'failed' marks a failed generation even when `status` is COMPLETED."
+          },
+          "error": {
+            "type": "string",
+            "description": "Failure detail, when the generation failed."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inferenceTime": {
+            "type": "number"
+          },
+          "delayTime": {
+            "type": "number"
+          },
+          "input": {
+            "description": "The stored client input. `{}` after payload retention removed it \u2014 see `payloadsPurgedAt`."
+          },
+          "output": {
+            "description": "The model output. `{}` after payload retention removed it \u2014 see `payloadsPurgedAt`."
+          },
+          "payloadsPurgedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Set when input/output are empty because retention removed them, not because the model returned nothing."
+          },
+          "totalPrice": {
+            "type": "string",
+            "description": "What this request actually charged, as a decimal string."
+          },
+          "public": {
+            "type": "boolean",
+            "description": "Owner-controlled publication state; requests default to private."
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The caller-supplied metadata tags from submit time."
+          },
+          "thumbnails": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "wrapperId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "baseModelId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "baseModelEndpoint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            }
+          }
+        }
       }
     }
   }
 }
-
-
