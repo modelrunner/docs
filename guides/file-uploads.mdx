@@ -182,20 +182,41 @@ For multi-gigabyte videos or when you want resumability, use the three-step mult
           { "partNumber": 2, "etag": "e2..." }
         ]
       }'
-    # → { "fileUrl": "https://media.modelrunner.ai/abc123-clip.mp4" }
     ```
 
-    The returned `fileUrl` is now usable as a model input.
+    <Warning>
+      The `fileUrl` this call returns is S3's own location for the assembled object, which is **not** publicly readable. Use the `fileUrl` from step 1 (`initiate-multipart`) as the model input — that is the canonical `media.modelrunner.ai` URL, and it is live as soon as this call succeeds.
+    </Warning>
   </Step>
 </Steps>
+
+## When the S3 host is blocked
+
+Both flows above `PUT` the bytes straight to AWS S3. Clients that run behind an egress allowlist — AI assistants and agent sandboxes, mainly — often cannot reach that host and get a `403` with `host_not_allowed`. Two fallbacks stay on ModelRunner's own domain:
+
+- **Upload relay.** Send `"relay": true` on [Initiate Upload](/api-reference/initiate-upload) and the response carries a `relay_upload_url` alongside the usual `upload_url`. `PUT` the raw bytes there instead and we stream them to storage server-side. Same 5-minute window, same `file_url`, and no `Authorization` header — the token in the URL is the credential. Try the S3 URL first; the relay costs an extra hop.
+- **Chunked inline upload.** If neither host is reachable, [`POST /storage/upload/chunk`](/api-reference/upload-file-in-chunks) takes the file as small base64 chunks and assembles it server-side. Capped at 50 MiB per file and slower than either `PUT` — a last resort.
+
+## Your asset library
+
+Every upload and every model output becomes a file record you can list, search, and organize:
+
+- [List Files](/api-reference/list-files) — your library, filterable by bucket (`upload` / `output` / `input`), MIME type, tag, or favorite.
+- [Get File by URL](/api-reference/get-file-by-url) — resolve a `media.modelrunner.ai` URL you are holding back to its record, including which requests used it.
+- [Favorite](/api-reference/favorite-file) and [tag](/api-reference/assign-tag-to-file) files to organize them. Both also exempt a file from expiry, so something you meant to keep is not swept away — see [data retention](/guides/data-retention).
+- [Delete File](/api-reference/delete-file) removes the record, not the stored bytes — and with the record gone there is nothing left to find the object by. Set an expiry at upload time for anything you want cleaned up automatically.
+
+URLs you paste in from elsewhere are not recorded — only files that passed through ModelRunner storage.
 
 ## Reference
 
 | Method | Path | Body / Query | Returns |
 | --- | --- | --- | --- |
-| POST | `/storage/upload/initiate` | `{ file_name, content_type, size? }` | `{ upload_url, file_url }` |
+| POST | `/storage/upload/initiate` | `{ file_name, content_type, size?, relay? }` | `{ upload_url, file_url, relay_upload_url? }` |
+| PUT | `/storage/upload/relay` | `?upload_token`, raw bytes | `{ file_url }` |
 | POST | `/storage/upload/initiate-multipart` | `{ file_name, content_type, size? }` | `{ fileUrl, uploadId, uploadKey }` |
 | GET | `/storage/upload/multipart-url` | `?uploadKey&uploadId&partNumber` | `{ presignedUrl }` |
-| POST | `/storage/upload/complete` | `{ uploadId, uploadKey, parts: [{ partNumber, etag }] }` | `{ fileUrl }` |
+| POST | `/storage/upload/complete` | `{ uploadId, uploadKey, parts: [{ partNumber, etag }] }` | `{ fileUrl }` — S3's location; use step 1's URL |
+| POST | `/storage/upload/chunk` | `{ upload_id?, part_index, is_last_part, base64, … }` | `{ upload_id, received_parts, file_url? }` |
 
-All endpoints require the standard `Authorization: Key <your_key>` header. See [API keys](/api-keys).
+Every endpoint except the relay takes the standard `Authorization: Key <your_key>` header — see [API keys](/api-keys). Full request and response schemas live in the [Platform API reference](/api-reference/initiate-upload).

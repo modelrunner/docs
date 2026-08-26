@@ -3,7 +3,7 @@
   "info": {
     "title": "ModelRunner Platform API",
     "version": "1.0.0",
-    "description": "Platform APIs: model catalog and search, model pricing rate cards, account balance and usage, and webhook delivery management. Catalog reads are public; account-scoped routes authenticate with your API key (`Authorization: Key <MODELRUNNER_KEY>`). Request lifecycle endpoints (submit/status/result and the request list) live on the queue host \u2014 see the Queue API reference."
+    "description": "Platform APIs: model catalog, search and collections; model pricing rate cards; file uploads and your asset library; account balance and usage; and webhook delivery management. Catalog reads are public; account-scoped routes authenticate with your API key (`Authorization: Key <MODELRUNNER_KEY>`). Request lifecycle endpoints (submit/status/result and the request list) live on the queue host \u2014 see the Queue API reference."
   },
   "servers": [
     {
@@ -525,6 +525,470 @@
             "format": "date-time"
           }
         }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total matching rows across all pages."
+          },
+          "totalPages": {
+            "type": "integer"
+          }
+        }
+      },
+      "Tag": {
+        "type": "object",
+        "description": "A tag in your personal tag collection. Tags are per-account and never shared.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TagWithCount": {
+        "type": "object",
+        "description": "A tag plus how many of your files carry it.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "count": {
+            "type": "integer"
+          }
+        }
+      },
+      "File": {
+        "type": "object",
+        "description": "One asset in your library \u2014 a file you uploaded or an output a model produced for you.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "description": "Canonical public URL on the media domain. Pass this to any model input that accepts a file."
+          },
+          "thumbnailUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Lightweight generated preview (`.webp` image / `.webm` motion preview) for request outputs. Null for uploads, audio, and older rows \u2014 fall back to `url`."
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mimeType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "storageKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "upload",
+              "request_output",
+              "external"
+            ],
+            "description": "How the row was created: `upload` (you uploaded it), `request_output` (a model produced it), `external` (a URL recorded from elsewhere)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isFavorited": {
+            "type": "boolean",
+            "description": "Whether you have favorited this file."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tag"
+            },
+            "description": "Tags you have applied to this file."
+          }
+        }
+      },
+      "FileRequestLink": {
+        "type": "object",
+        "description": "A link between a file and a request that used or produced it.",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "input",
+              "output",
+              "thumbnail"
+            ],
+            "description": "`input` \u2014 the file was passed into the request; `output` \u2014 the request produced it."
+          },
+          "position": {
+            "type": "integer",
+            "description": "Index within that role, for multi-file requests."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FileWithRequests": {
+        "type": "object",
+        "description": "A file plus its request linkages.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "description": "Canonical public URL on the media domain. Pass this to any model input that accepts a file."
+          },
+          "thumbnailUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Lightweight generated preview (`.webp` image / `.webm` motion preview) for request outputs. Null for uploads, audio, and older rows \u2014 fall back to `url`."
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mimeType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "storageKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "upload",
+              "request_output",
+              "external"
+            ],
+            "description": "How the row was created: `upload` (you uploaded it), `request_output` (a model produced it), `external` (a URL recorded from elsewhere)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isFavorited": {
+            "type": "boolean",
+            "description": "Whether you have favorited this file."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tag"
+            },
+            "description": "Tags you have applied to this file."
+          },
+          "requests": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileRequestLink"
+            },
+            "description": "Every request this file is linked to, as input or output."
+          }
+        }
+      },
+      "FileFacets": {
+        "type": "object",
+        "description": "Counts per asset bucket under the active type/tag/search filters.",
+        "properties": {
+          "all": {
+            "type": "integer"
+          },
+          "favorites": {
+            "type": "integer"
+          },
+          "uploads": {
+            "type": "integer"
+          },
+          "outputs": {
+            "type": "integer"
+          },
+          "inputs": {
+            "type": "integer"
+          }
+        }
+      },
+      "ModelFacets": {
+        "type": "object",
+        "description": "Catalog counts by modality pair and capability, under the same filters as List Models.",
+        "properties": {
+          "modalities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "input": {
+                  "type": "string",
+                  "description": "e.g. text, image, video, audio."
+                },
+                "output": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "capability": {
+                  "type": "string",
+                  "description": "e.g. edit, upscale, extend, remove_background."
+                },
+                "count": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Models matching the filters."
+          }
+        }
+      },
+      "CollectionModelSummary": {
+        "type": "object",
+        "description": "The trimmed model card returned inside a collection. Fetch the full record from `GET /models` or the per-model OpenAPI document.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "alias": {
+            "type": "string",
+            "description": "May contain slashes. The endpoint is `ownerName/alias`."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "variantName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "shortDescription": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "inputModalities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outputModalities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "thumbnailUrl": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CollectionListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe identifier used by `GET /collections/{slug}`."
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "heroImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isPublished": {
+            "type": "boolean",
+            "description": "Always `true` on these public reads."
+          },
+          "sortBy": {
+            "type": "string",
+            "enum": [
+              "newest",
+              "name",
+              "category"
+            ],
+            "description": "How the collection orders its members for display."
+          },
+          "displayOrder": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "modelCount": {
+            "type": "integer",
+            "description": "Number of models returned in `models` \u2014 private members are withheld and are not counted."
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CollectionModelSummary"
+            }
+          }
+        }
+      },
+      "CollectionWithModels": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string",
+            "description": "URL-safe identifier used by `GET /collections/{slug}`."
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "heroImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isPublished": {
+            "type": "boolean",
+            "description": "Always `true` on these public reads."
+          },
+          "sortBy": {
+            "type": "string",
+            "enum": [
+              "newest",
+              "name",
+              "category"
+            ],
+            "description": "How the collection orders its members for display."
+          },
+          "displayOrder": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CollectionModelSummary"
+            }
+          }
+        }
       }
     }
   },
@@ -640,6 +1104,69 @@
                         "$ref": "#/components/schemas/Model"
                       }
                     }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models/facets": {
+      "get": {
+        "summary": "Get Catalog Facets",
+        "description": "Counts of catalog models grouped by input\u2192output modality pair and by capability, under the same filters as List Models. Only public models are counted, so the totals always agree with what List Models returns.",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Same free-text search as List Models."
+          },
+          {
+            "name": "owner",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "featured",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Facet counts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelFacets"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models/featured": {
+      "get": {
+        "summary": "List Featured Models",
+        "description": "The curated featured set, unpaginated. Same public projection as List Models \u2014 provider internals are never included.",
+        "responses": {
+          "200": {
+            "description": "Featured models.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Model"
                   }
                 }
               }
@@ -798,6 +1325,1362 @@
                     }
                   },
                   "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/collections": {
+      "get": {
+        "summary": "List Collections",
+        "description": "Published model collections \u2014 curated groupings of related models. Private member models are withheld, and `modelCount` counts only the models actually returned.",
+        "responses": {
+          "200": {
+            "description": "Published collections.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CollectionListItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/collections/{slug}": {
+      "get": {
+        "summary": "Get Collection",
+        "description": "One published collection with its member models. Unpublished collections are not readable here.",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The collection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionWithModels"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown slug, or the collection is not published.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/upload/initiate": {
+      "post": {
+        "summary": "Initiate Upload",
+        "description": "Start a single-part upload. Returns a presigned `upload_url` to `PUT` the bytes to, and the canonical `file_url` to pass as a model input. The file row is created now, so an upload you never complete leaves a row whose `file_url` 404s. Walkthrough: [File uploads](/guides/file-uploads).",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Modelrunner-Object-Lifecycle-Preference",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "JSON object setting an expiry for the stored object, e.g. `{\"expiration_duration_seconds\": 3600}`. The countdown starts at upload time. See the [data retention guide](/guides/data-retention).",
+            "examples": {
+              "oneHour": {
+                "value": "{\"expiration_duration_seconds\": 3600}"
+              }
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file_name",
+                  "content_type"
+                ],
+                "properties": {
+                  "file_name": {
+                    "type": "string",
+                    "description": "Original filename. Preserved, with a random prefix."
+                  },
+                  "content_type": {
+                    "type": "string",
+                    "description": "MIME type. Send the same value as `Content-Type` on the `PUT`."
+                  },
+                  "size": {
+                    "type": "integer",
+                    "description": "Byte size, for validation."
+                  },
+                  "relay": {
+                    "type": "boolean",
+                    "description": "Also mint `relay_upload_url` \u2014 a first-party `PUT` URL on this API host that streams to the same object server-side. For clients whose egress allowlist rejects the raw AWS S3 host."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Presigned upload.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "upload_url": {
+                      "type": "string",
+                      "description": "Presigned S3 `PUT` URL. Valid 5 minutes. Send no `Authorization` header \u2014 the URL carries its own credentials."
+                    },
+                    "file_url": {
+                      "type": "string",
+                      "description": "Canonical public URL. Usable as model input once the bytes land."
+                    },
+                    "relay_upload_url": {
+                      "type": "string",
+                      "description": "Present only when `relay: true`. Same 5-minute window; `PUT` the raw bytes here instead if the S3 host is blocked."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/upload/initiate-multipart": {
+      "post": {
+        "summary": "Initiate Multipart Upload",
+        "description": "Start a multipart upload for a large file. `fileUrl` is the canonical public URL \u2014 keep it; it is the one to pass as a model input once the upload completes.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file_name",
+                  "content_type"
+                ],
+                "properties": {
+                  "file_name": {
+                    "type": "string"
+                  },
+                  "content_type": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Multipart upload started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fileUrl": {
+                      "type": "string",
+                      "description": "Canonical public URL for the finished object."
+                    },
+                    "uploadId": {
+                      "type": "string"
+                    },
+                    "uploadKey": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/upload/multipart-url": {
+      "get": {
+        "summary": "Get Multipart Part URL",
+        "description": "Presign one part of an in-flight multipart upload. Part numbers start at 1; every part except the last must be at least 5 MiB. Capture the `ETag` response header from each part `PUT` \u2014 Complete Multipart Upload needs it.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uploadKey",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "uploadId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "partNumber",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Presigned part upload URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "presignedUrl": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/upload/complete": {
+      "post": {
+        "summary": "Complete Multipart Upload",
+        "description": "Assemble the uploaded parts into one object and record the file. This is where the multipart file row is created, so an object-lifecycle header belongs on this call rather than the initiate.\n\nThe `fileUrl` returned here is S3's native location, which is **not** publicly readable. Use the `fileUrl` from Initiate Multipart Upload as the model input.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Modelrunner-Object-Lifecycle-Preference",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "JSON object setting an expiry for the stored object, e.g. `{\"expiration_duration_seconds\": 3600}`. The countdown starts at upload time. See the [data retention guide](/guides/data-retention).",
+            "examples": {
+              "oneHour": {
+                "value": "{\"expiration_duration_seconds\": 3600}"
+              }
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "uploadId",
+                  "uploadKey",
+                  "parts"
+                ],
+                "properties": {
+                  "uploadId": {
+                    "type": "string"
+                  },
+                  "uploadKey": {
+                    "type": "string"
+                  },
+                  "parts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "partNumber",
+                        "etag"
+                      ],
+                      "properties": {
+                        "partNumber": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "etag": {
+                          "type": "string",
+                          "description": "The `ETag` header from that part's `PUT`, without surrounding quotes."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upload assembled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fileUrl": {
+                      "type": "string",
+                      "description": "S3's native location URL for the assembled object \u2014 not the public URL. See the description."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/upload/chunk": {
+      "post": {
+        "summary": "Upload File in Chunks",
+        "description": "Send a file inline as small base64 chunks, assembled server-side. This exists for clients that can reach neither the S3 host nor the relay \u2014 prefer Initiate Upload everywhere else.\n\nOmit `upload_id` on the first chunk; the response mints one to thread through the rest. Set `is_last_part` on the final chunk. Chunks may arrive out of order; the upload completes when every index from 0 to the last is present, and the response then carries `file_url`. Limits: 1 MiB decoded per chunk, 50 MiB per upload, 10,000 parts, and abandoned parts are discarded after an hour.\n\n`expected_decoded_bytes` is the truncation guard: a mismatch rejects that chunk alone, so resend only that `part_index`.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "part_index",
+                  "is_last_part",
+                  "base64",
+                  "file_name",
+                  "expected_decoded_bytes"
+                ],
+                "properties": {
+                  "upload_id": {
+                    "type": "string",
+                    "description": "Omit on the first chunk; echo the minted value on every later chunk."
+                  },
+                  "part_index": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "is_last_part": {
+                    "type": "boolean",
+                    "description": "Exactly one chunk may set this."
+                  },
+                  "base64": {
+                    "type": "string",
+                    "description": "This chunk's bytes, base64-encoded. ~32\u201348 KB per chunk works well."
+                  },
+                  "file_name": {
+                    "type": "string"
+                  },
+                  "content_type": {
+                    "type": "string",
+                    "description": "Defaults to `application/octet-stream`."
+                  },
+                  "expected_decoded_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "Decoded byte length of this chunk."
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "description": "Optional hex SHA-256 of this chunk's decoded bytes."
+                  },
+                  "file_sha256": {
+                    "type": "string",
+                    "description": "Optional hex SHA-256 of the whole assembled file, checked at completion."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Chunk stored, or upload completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "upload_id": {
+                      "type": "string"
+                    },
+                    "received_parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "description": "Indices held so far."
+                    },
+                    "missing_parts": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      },
+                      "description": "Present once the final part has been seen and gaps remain."
+                    },
+                    "file_url": {
+                      "type": "string",
+                      "description": "Present only on the chunk that completes the upload."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Chunk failed validation \u2014 length mismatch, hash mismatch, or a cap exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/storage/upload/relay": {
+      "put": {
+        "summary": "Relay Upload Bytes",
+        "description": "First-party fallback for the presigned `PUT`: send the raw bytes here and they are streamed to storage server-side. Call this only with the `relay_upload_url` returned by Initiate Upload with `relay: true` \u2014 the `upload_token` in that URL is the sole credential, is bound to one object key and content type, and expires in 5 minutes. Do not send an `Authorization` header. Maximum 200 MiB.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "upload_token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Taken verbatim from `relay_upload_url`. Not an API key, and not usable on any other route."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bytes stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "file_url": {
+                      "type": "string",
+                      "description": "Canonical public URL \u2014 the same `file_url` the initiate returned."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Empty body, or larger than 200 MiB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired, or non-upload token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files": {
+      "get": {
+        "summary": "List Files",
+        "description": "Your asset library, newest first \u2014 every file you uploaded plus every output a model produced for you. Always scoped to the authenticated account.\n\nFiles reach this library from three places: [uploads](/guides/file-uploads), request outputs at finalization, and inputs you pass to a request (which links the upload you already own). URLs pasted from elsewhere are not recorded.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sources",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "upload",
+                  "output",
+                  "input",
+                  "external"
+                ]
+              }
+            },
+            "style": "form",
+            "explode": true,
+            "description": "Repeat to union buckets. `upload` \u2014 files you uploaded; `output` \u2014 files a model produced for you; `input` \u2014 your uploads that a request consumed. `external` rows are excluded unless you ask for them explicitly."
+          },
+          {
+            "name": "tagIds",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "style": "form",
+            "explode": true,
+            "description": "Repeat for multiple tags."
+          },
+          {
+            "name": "tagRule",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "all"
+              ],
+              "default": "any"
+            },
+            "description": "How multiple `tagIds` combine."
+          },
+          {
+            "name": "favoritesOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Substring match over the storage key and URL."
+          },
+          {
+            "name": "mimeTypePrefix",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "e.g. `image/`, `video/`, `audio/`."
+          },
+          {
+            "name": "requestId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only files linked to this request."
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "input",
+                "output",
+                "thumbnail"
+              ]
+            },
+            "description": "Only files linked in this role."
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "upload",
+                "request_output",
+                "external"
+              ]
+            },
+            "description": "Filter on the stored `source` column. Prefer `sources`, which matches the buckets in File Facets."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "newest",
+                "oldest"
+              ],
+              "default": "newest"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of files.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/File"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/PaginationMeta"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/facets": {
+      "get": {
+        "summary": "Get File Facets",
+        "description": "How many of your files fall in each bucket, under the type, tag, and search filters you pass. Bucket filters (`sources`, `favoritesOnly`) are what is being counted, so they are ignored here.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tagIds",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "style": "form",
+            "explode": true,
+            "description": "Repeat for multiple tags."
+          },
+          {
+            "name": "tagRule",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "any",
+                "all"
+              ],
+              "default": "any"
+            },
+            "description": "How multiple `tagIds` combine."
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Substring match over the storage key and URL."
+          },
+          {
+            "name": "mimeTypePrefix",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "e.g. `image/`, `video/`, `audio/`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counts per bucket.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileFacets"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/by-url": {
+      "get": {
+        "summary": "Get File by URL",
+        "description": "Look a file up by its public URL when you hold the URL but not the id \u2014 for example to check whether an output you are displaying is one of yours, and whether you have favorited it.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The canonical `file_url`, matched exactly."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file and its request linkages.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileWithRequests"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{fileId}": {
+      "get": {
+        "summary": "Get File",
+        "description": "One file with every request it is linked to, as input or output.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file and its request linkages.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileWithRequests"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete File",
+        "description": "Removes the file from your library and drops its request links. The stored object is **not** deleted and its URL keeps resolving \u2014 and once the record is gone there is nothing left to find the object by, so set an expiry at [upload time](/guides/data-retention) for anything you want cleaned up automatically.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{fileId}/favorite": {
+      "post": {
+        "summary": "Favorite File",
+        "description": "Marks the file as a favorite. Idempotent. A favorited file is also exempt from retention sweeps \u2014 see [data retention](/guides/data-retention).",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Favorited."
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Unfavorite File",
+        "description": "Removes the favorite. Idempotent \u2014 unfavoriting a file that was not favorited succeeds.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Unfavorited."
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{fileId}/tags": {
+      "post": {
+        "summary": "Assign Tag to File",
+        "description": "Tags one of your files. Pass `tagId` for an existing tag, or `name` to create-or-reuse one by case-insensitive name \u2014 exactly one of the two. Tagging also exempts a file from retention sweeps.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tagId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The assigned tag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Neither or both of `tagId` and `name` were provided.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{fileId}/tags/{tagId}": {
+      "delete": {
+        "summary": "Remove Tag from File",
+        "description": "Unassigns a tag from a file. Idempotent, and leaves the tag itself in place.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "tagId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Unassigned."
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tags": {
+      "get": {
+        "summary": "List Tags",
+        "description": "Your tags, each with the number of your files carrying it.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your tags.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TagWithCount"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Tag",
+        "description": "Creates a tag. Idempotent on the case-insensitive name \u2014 an existing tag with that name is returned unchanged.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The tag.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tag"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or invalid name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tags/{tagId}": {
+      "delete": {
+        "summary": "Delete Tag",
+        "description": "Deletes the tag and unassigns it from every file. The files themselves are untouched.",
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tagId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "Missing or invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such tag on this account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

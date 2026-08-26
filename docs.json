@@ -57,7 +57,6 @@
         "tab": "API reference",
         "icon": "terminal",
         "description": "Reference for the API",
-        "openapi": "openapi.json",
         "groups": [
           {
             "group": "API documentation",
@@ -68,11 +67,85 @@
             ]
           },
           {
+            "group": "Queue API",
+            "openapi": "openapi.json",
+            "pages": [
+              "POST /{ownerName}/{modelName}",
+              "GET /{ownerName}/{modelName}/requests/{requestId}/status",
+              "GET /{ownerName}/{modelName}/requests/{requestId}",
+              "GET /requests",
+              "GET /requests/{requestId}",
+              "GET /requests/stream",
+              "PATCH /requests/{requestId}/visibility",
+              "DELETE /requests/{requestId}/payloads"
+            ]
+          },
+          {
             "group": "Platform APIs",
-            "openapi": {
-              "source": "platform-openapi.json",
-              "directory": "api-reference/platform"
-            }
+            "pages": [
+              {
+                "group": "Model catalog",
+                "openapi": "platform-openapi.json",
+                "pages": [
+                  "GET /models",
+                  "GET /models/facets",
+                  "GET /models/featured",
+                  "GET /models/pricing",
+                  "GET /models/{ownerName}/{alias}/openapi.json",
+                  "GET /search",
+                  "GET /collections",
+                  "GET /collections/{slug}"
+                ]
+              },
+              {
+                "group": "Uploads",
+                "openapi": "platform-openapi.json",
+                "pages": [
+                  "POST /storage/upload/initiate",
+                  "POST /storage/upload/initiate-multipart",
+                  "GET /storage/upload/multipart-url",
+                  "POST /storage/upload/complete",
+                  "POST /storage/upload/chunk",
+                  "PUT /storage/upload/relay"
+                ]
+              },
+              {
+                "group": "Assets",
+                "openapi": "platform-openapi.json",
+                "pages": [
+                  "GET /files",
+                  "GET /files/facets",
+                  "GET /files/by-url",
+                  "GET /files/{fileId}",
+                  "DELETE /files/{fileId}",
+                  "POST /files/{fileId}/favorite",
+                  "DELETE /files/{fileId}/favorite",
+                  "POST /files/{fileId}/tags",
+                  "DELETE /files/{fileId}/tags/{tagId}",
+                  "GET /tags",
+                  "POST /tags",
+                  "DELETE /tags/{tagId}"
+                ]
+              },
+              {
+                "group": "Account",
+                "openapi": "platform-openapi.json",
+                "pages": [
+                  "GET /billing/balance",
+                  "GET /billing/usage-summary"
+                ]
+              },
+              {
+                "group": "Webhooks",
+                "openapi": "platform-openapi.json",
+                "pages": [
+                  "GET /webhooks/default/secret",
+                  "POST /webhooks/default/secret/rotate",
+                  "GET /webhooks/deliveries",
+                  "POST /webhooks/deliveries/{deliveryId}/replay"
+                ]
+              }
+            ]
           }
         ]
       }
@@ -129,5 +202,57 @@
       "apiKey": "phc_xdh7FwyduKSaB5wLndEYCqdGB7uVqtvJvVmuVbSZPuqp",
       "apiHost": "https://us.i.posthog.com"
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/api-reference/platform/list-models",
+      "destination": "/api-reference/list-models",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/platform/get-model-pricing",
+      "destination": "/api-reference/get-model-pricing",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/platform/get-model-openapi-schema",
+      "destination": "/api-reference/get-model-openapi-schema",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/platform/search-catalog",
+      "destination": "/api-reference/search-catalog",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/platform/get-balance",
+      "destination": "/api-reference/get-balance",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/platform/get-usage-summary",
+      "destination": "/api-reference/get-usage-summary",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/platform/get-webhook-secret",
+      "destination": "/api-reference/get-webhook-secret",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/platform/rotate-webhook-secret",
+      "destination": "/api-reference/rotate-webhook-secret",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/platform/list-webhook-deliveries",
+      "destination": "/api-reference/list-webhook-deliveries",
+      "permanent": true
+    },
+    {
+      "source": "/api-reference/platform/replay-webhook-delivery",
+      "destination": "/api-reference/replay-webhook-delivery",
+      "permanent": true
+    }
+  ]
 }

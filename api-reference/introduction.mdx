@@ -5,7 +5,7 @@ description: 'Use API keys in the Authorization header to access ModelRunner API
 
 ## Authorization
 
-All API requests require an API key and must include it using the Key scheme in the `Authorization` header.
+Account-scoped API requests require an API key, passed with the Key scheme in the `Authorization` header. The catalog reads under Platform APIs — models, search, pricing and collections — are public and need no key.
 
 <Steps>
 <Step title="Create an API key">
@@ -40,7 +40,7 @@ All API requests require an API key and must include it using the Key scheme in 
   ```javascript Node.js
   import fetch from 'node-fetch';
 
-  const res = await fetch('http://queue.modelrunner.run/bytedance/sdxl-lightning-4step/requests/FeLpfyrYRTXxsY7EB7Ehy', {
+  const res = await fetch('https://queue.modelrunner.run/bytedance/sdxl-lightning-4step/requests/FeLpfyrYRTXxsY7EB7Ehy', {
     headers: { Authorization: 'Key modelrunner_key' }
   });
   ```
