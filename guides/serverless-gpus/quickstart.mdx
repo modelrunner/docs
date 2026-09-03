@@ -1,0 +1,120 @@
+---
+title: "Quickstart"
+description: "Create a deployment in the dashboard, submit your first job through the queue API, and read the result."
+icon: "rocket"
+---
+
+This walkthrough creates an LLM server on a serverless GPU and runs one prompt through it. You need a ModelRunner account with a positive balance, an [API key](/api-keys), and beta access to Serverless GPUs (see [Beta gating](/guides/serverless-gpus/overview#beta-gating)).
+
+## 1. Create the deployment
+
+Creating and updating deployments is done in the dashboard in this release — there is no public create API yet.
+
+<Steps>
+  <Step title="Open the wizard">
+    Go to **Settings → Serverless GPUs** and select **New deployment**.
+  </Step>
+
+  <Step title="Pick a template and configure it">
+    Choose **LLM Server (vLLM)** and fill in its fields. The only required one is the **Hugging Face model id**, in `owner/model` form — for example `Qwen/Qwen2.5-7B-Instruct`.
+
+    Optional fields cover max context length, quantization (`awq`, `gptq`, `bitsandbytes`) and GPU memory utilization. A **Hugging Face token** field appears for gated models.
+
+    <Warning>
+      Secret fields are **write-only**. Once saved, no API and no dashboard screen ever returns the value — you can replace it, but you cannot read it back. Keep your own copy.
+    </Warning>
+  </Step>
+
+  <Step title="Choose a GPU">
+    The picker lists the serverless SKUs with VRAM, price and live availability. Pick one with enough VRAM for the weights you are loading; a SKU showing `none` has no capacity right now.
+  </Step>
+
+  <Step title="Set scaling">
+    | Setting | Range | Default |
+    | --- | --- | --- |
+    | Max workers | 1–3 | 1 |
+    | Idle timeout | 1–60 s | 5 s |
+    | Execution timeout | 5 s – 2 h | 5 min |
+    | Monthly spend cap | optional | none |
+
+    Minimum workers is always `0` in this release — the deployment scales to zero when idle.
+  </Step>
+
+  <Step title="Review the estimate and create">
+    The review step shows the **estimated max burn** — the hourly cost with every worker running. Creating the deployment also reserves a **credit hold** against your balance; if your available balance does not cover it, creation is refused with a `402` and nothing is created. Top up and retry. See [Billing](/guides/serverless-gpus/billing#the-credit-hold).
+
+    Give it an alias (lowercase, hyphenated, no slashes) and create. Status moves `deploying` → `active`.
+  </Step>
+</Steps>
+
+<Note>
+  **First boot takes minutes, not seconds.** A cold start downloads the container image before the workload can start; for a large LLM image that is on the order of ten minutes. Image download time is not billed — worker time is. Subsequent cold starts on the same deployment are much faster because the image is already staged.
+</Note>
+
+## 2. Submit a job
+
+Your deployment answers on the same queue host as every catalog model, at `{username}/{alias}`. The body is **your workload's own input fields at the top level** — nothing is validated against a model schema:
+
+```bash
+curl -X POST https://queue.modelrunner.run/alice/my-llm \
+  -H "Authorization: Key $MODELRUNNER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Explain serverless GPUs in two sentences.",
+    "sampling_params": { "max_tokens": 128 }
+  }'
+```
+
+```json
+{
+  "request_id": "FeLpfyrYRTXxsY7EB7Ehy",
+  "status": "IN_QUEUE",
+  "response_url": "https://queue.modelrunner.run/alice/my-llm/requests/FeLpfyrYRTXxsY7EB7Ehy",
+  "status_url": "https://queue.modelrunner.run/alice/my-llm/requests/FeLpfyrYRTXxsY7EB7Ehy/status",
+  "cancel_url": "https://queue.modelrunner.run/alice/my-llm/requests/FeLpfyrYRTXxsY7EB7Ehy/cancel"
+}
+```
+
+<Tip>
+  The very first job on a fresh deployment waits through the cold start. Give it a generous timeout, or watch the **Workers** and **Logs** tabs in the dashboard to see the boot happen.
+</Tip>
+
+## 3. Poll for the result
+
+```bash
+curl "https://queue.modelrunner.run/alice/my-llm/requests/$REQUEST_ID/status" \
+  -H "Authorization: Key $MODELRUNNER_KEY"
+```
+
+Poll at 1–2 second intervals until `status` is terminal — `COMPLETED`, `FAILED` or `CANCELLED`. Or skip polling entirely: deployments support [webhooks](/guides/webhooks) and the [SSE stream](/guides/request-lifecycle#three-ways-to-watch-a-request) exactly like catalog models.
+
+## 4. Read the output
+
+```bash
+curl "https://queue.modelrunner.run/alice/my-llm/requests/$REQUEST_ID" \
+  -H "Authorization: Key $MODELRUNNER_KEY"
+```
+
+The `output` field is **your workload's own JSON, verbatim** — whatever your handler returned, with no schema validation and no media re-hosting. The LLM server template returns an array of completion objects; that shape, and the input fields above, are the template's own contract rather than a platform one, so check the template's current fields if they do not match.
+
+```json
+{
+  "status": "COMPLETED",
+  "output": [
+    { "choices": [{ "tokens": ["Serverless GPUs let you …"] }] }
+  ]
+}
+```
+
+<Warning>
+  As with every request on the platform, `status: "COMPLETED"` alone does not mean the job succeeded. Read `billingStatus` on `GET /requests/{requestId}` — `failed` marks a failed run — or note that `response_url` answers **422** with an `error` field when the run failed. See [Statuses & failure semantics](/api-reference/request-semantics).
+</Warning>
+
+## 5. Watch the money
+
+Idle workers wind down after the idle timeout and the deployment returns to zero — at which point it costs nothing per second, though the credit hold stays reserved while the deployment exists. Pause it to release the hold, or delete it when you are done:
+
+- **Settings → Serverless GPUs → your deployment → Usage** shows metered worker-seconds and settled charges per hour.
+- `GET /billing/usage-summary` reports the account-wide `serverlessSpent` figure.
+
+Read [**Billing**](/guides/serverless-gpus/billing) before you leave a deployment running unattended.

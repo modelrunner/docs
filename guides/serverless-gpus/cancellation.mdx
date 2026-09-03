@@ -1,0 +1,80 @@
+---
+title: "Cancel and terminal states"
+description: "Deployment jobs are the one place on ModelRunner where cancel really cancels — and where CANCELLED is a state your poller must handle."
+icon: "circle-stop"
+---
+
+For catalog models and wrappers, `cancel_url` is [reserved and does nothing](/guides/request-lifecycle#cancellation). For **deployment** jobs it is real: the job stops, the request lands on `CANCELLED`, and you are not charged for it.
+
+## Cancelling a job
+
+Call `cancel` on the request — the URL is `status_url` with `/status` replaced by `/cancel`, and it is returned as `cancel_url` on every submit. Both `PUT` and `GET` work; prefer `PUT`, since the call mutates state.
+
+```bash
+curl -X PUT "https://queue.modelrunner.run/alice/my-llm/requests/$REQUEST_ID/cancel" \
+  -H "Authorization: Key $MODELRUNNER_KEY"
+```
+
+A successful cancel returns the standard queue envelope with the new state:
+
+```json
+{
+  "request_id": "FeLpfyrYRTXxsY7EB7Ehy",
+  "status": "CANCELLED",
+  "error": "Cancelled by the caller"
+}
+```
+
+and, as a side effect:
+
+- `billingStatus` becomes `failed` — the platform's zero-charge settle. No per-job charge is raised.
+- A `completed` [webhook](/guides/webhooks) fires, as it does for every terminal outcome.
+- The SSE stream emits the transition.
+
+<Note>
+  Cancelling a job stops that job. It does **not** stop the worker that was serving it, and worker-seconds already burned are still metered — cancel saves you the remainder of a long job, not the cold start that preceded it. To stop paying for workers, pause or delete the deployment ([Lifecycle](/guides/serverless-gpus/lifecycle)).
+</Note>
+
+### When cancel does not land
+
+The platform confirms the stop with the compute layer **before** writing a terminal state locally. If that confirmation does not arrive — the job finished a moment earlier, or the call itself was ambiguous — no `CANCELLED` is written. Instead the response carries the request's real current state, which may well be `COMPLETED`.
+
+This is deliberate: converting an ambiguous outcome into `CANCELLED` would throw away a result you already paid worker time to produce. Read the `status` in the response rather than assuming the cancel succeeded.
+
+Cancelling an already-terminal request is a no-op that returns its current state — with one quirk: a request resting on `FAILED` answers **400** rather than 200, carrying that same body.
+
+## Terminal states
+
+`CANCELLED` joins `COMPLETED` and `FAILED` as a terminal state. All three are final — a request never transitions away from them.
+
+```text
+IN_QUEUE  ──►  IN_PROGRESS  ──►  COMPLETED
+                            ──►  FAILED
+                            ──►  CANCELLED
+```
+
+<Warning>
+  **Pollers must treat `CANCELLED` as terminal.** A loop that waits for `COMPLETED` or `FAILED` and nothing else will spin forever on a cancelled job. If you wrote your own polling loop against the queue API before deployments existed, add the third state now — this is the first time it is genuinely reachable.
+
+  SDK helpers (`subscribe` in JS, `submit_async` + `iter_events` in Python) handle it for you once they are on a version that ships deployment support.
+</Warning>
+
+## Timeouts
+
+Each deployment carries an **execution timeout** (`executionTimeoutMs`, 5 seconds to 2 hours, 5 minutes by default). A job that runs past it is terminated by the compute layer.
+
+The result follows the platform's normal failure convention rather than resting on `FAILED`: the request settles as `status: "COMPLETED"` with `billingStatus: "failed"`. Read `billingStatus` — it is the reliable signal. When the compute layer supplied failure detail it lands in `error` and `response_url` answers **422**; when it did not, `error` can be empty and `response_url` returns the empty output instead, so do not branch on the 422 alone.
+
+No per-job charge is raised — but the worker-seconds the job consumed before it was cut off are metered and billed like any other worker time.
+
+If jobs routinely time out, raise `executionTimeoutMs` in the deployment's settings, or make the workload faster. A timeout is not a retry signal: nothing resubmits the job for you.
+
+## Drain-cancellation
+
+Deleting a deployment cancels everything still in flight. Pending and running jobs are force-cancelled as part of the drain, each landing on `CANCELLED` with a `completed` webhook, before the endpoint is removed. See [Lifecycle](/guides/serverless-gpus/lifecycle#deleting).
+
+## Cancelled requests and results
+
+A cancelled request produced no output, so there is nothing at `response_url`. Read the terminal state from `status_url` or `GET /requests/{requestId}`; both carry `status: "CANCELLED"` and `billingStatus: "failed"`.
+
+Retention behaves normally — a cancelled request's stored input is subject to the same [data retention](/guides/data-retention) rules as any other.

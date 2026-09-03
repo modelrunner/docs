@@ -20,7 +20,7 @@ IN_QUEUE  ──►  IN_PROGRESS  ──►  COMPLETED
 | `IN_PROGRESS` | The provider is actively generating output. |
 | `COMPLETED` | Output is available at `response_url`. Billing has been settled. |
 | `FAILED` | The request was force-failed by the platform after being stuck. Not billed. |
-| `CANCELLED` | Reserved. **Not currently reachable** — see below. |
+| `CANCELLED` | The request was cancelled before it finished. Reachable on [Serverless GPU deployment](/guides/serverless-gpus/cancellation) jobs only. Not billed. |
 
 `COMPLETED`, `FAILED`, and `CANCELLED` are **terminal** — the request will never transition away from them.
 
@@ -29,7 +29,7 @@ IN_QUEUE  ──►  IN_PROGRESS  ──►  COMPLETED
 
   **A failed generation is recorded as `COMPLETED`, not `FAILED`.** When the provider errors, the request itself completed — it just produced no output — so it lands on `COMPLETED` with a populated `error` and a `billingStatus` of `failed`. `FAILED` is reserved for requests the platform force-fails after they get stuck. So **`status` alone does not tell you whether the work succeeded**; check `billingStatus` (`charged` or `partial` means real output).
 
-  **`CANCELLED` is never written today.** Nothing sets it, and `cancel_url` does not cancel (see [Cancellation](#cancellation)). Handle it defensively if you like, but do not build a flow that waits for it.
+  **`CANCELLED` applies to deployment jobs only.** For catalog models and wrappers nothing sets it, and `cancel_url` does not cancel (see [Cancellation](#cancellation)). Jobs submitted to your own [Serverless GPU deployment](/guides/serverless-gpus/cancellation) *can* reach it — so a poller shared across both must treat `CANCELLED` as terminal.
 </Note>
 
 ## Submitting a request
@@ -48,7 +48,7 @@ The response returns immediately with `request_id`, `status: "IN_QUEUE"`, and th
 | --- | --- |
 | `status_url` | Poll for status transitions (or skip polling — see below). |
 | `response_url` | `GET` once status is `COMPLETED` to retrieve the validated output. |
-| `cancel_url` | `GET` (yes, GET). Returns the current status — it does **not** currently cancel. See [Cancellation](#cancellation). |
+| `cancel_url` | Cancels the request on a deployment endpoint; returns the current status on a model or wrapper endpoint. See [Cancellation](#cancellation). |
 
 ## Tagging requests with metadata
 
@@ -118,12 +118,14 @@ curl -G https://queue.modelrunner.run/requests \
 
 ## Cancellation
 
-`GET /{ownerName}/{modelName}/requests/{requestId}/cancel` returns the request's current status payload.
+`PUT` (or `GET`) `/{ownerName}/{modelName}/requests/{requestId}/cancel` — what it does depends on what the endpoint is.
+
+**On a Serverless GPU deployment, cancel is real.** The job is stopped, the request lands on terminal `CANCELLED` with `billingStatus: "failed"`, and a `completed` webhook fires. See [Cancel and terminal states](/guides/serverless-gpus/cancellation).
 
 <Warning>
-  **This endpoint does not currently cancel anything.** It is wired to the same handler as `status_url` and returns the same response, so the request continues to run and will still be billed if it completes. No request ever reaches `CANCELLED` (see the note under [States](#states)).
+  **On a catalog model or wrapper, this endpoint does not cancel anything.** It is wired to the same handler as `status_url` and returns the same response, so the request continues to run and will still be billed if it completes.
 
-  The route exists so that clients and SDKs built against it keep working once real cancellation ships. Until then, treat a submitted request as uninterruptible and do not rely on `cancel_url` to stop billable work.
+  The route exists so that clients and SDKs built against it keep working once real cancellation ships for catalog models too. Until then, treat a submitted model request as uninterruptible and do not rely on `cancel_url` to stop billable work.
 </Warning>
 
 ## Platform safety net: automatic finalization

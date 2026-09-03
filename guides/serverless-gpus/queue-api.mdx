@@ -1,0 +1,107 @@
+---
+title: "Queue API for deployments"
+description: "Submitting jobs to your own deployment uses the same endpoint, reserved keys and envelope as a catalog model — with a handful of deliberate differences."
+icon: "paper-plane"
+---
+
+A deployment is addressed exactly like a model or a wrapper. There is no separate API to learn and no SDK change to make: point the same submit call at your own `{username}/{alias}`.
+
+```bash
+POST https://queue.modelrunner.run/{owner}/{alias}
+Authorization: Key $MODELRUNNER_KEY
+Content-Type: application/json
+```
+
+The response is the standard queue envelope — `request_id`, `status`, `response_url`, `status_url`, `cancel_url` — and status polling, [SSE](/guides/request-lifecycle#three-ways-to-watch-a-request), [webhooks](/guides/webhooks) and [retention headers](/guides/data-retention) all behave the way they do for catalog models.
+
+## The input body is yours
+
+Everything at the top level of the body other than the reserved keys is handed to your workload as its job input, untouched:
+
+```bash
+curl -X POST https://queue.modelrunner.run/alice/my-llm \
+  -H "Authorization: Key $MODELRUNNER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "prompt": "hello", "sampling_params": { "max_tokens": 64 } }'
+```
+
+There is no input schema on the platform side. Nothing is validated, nothing is coerced, and no field mappings apply — your workload owns its own input contract, and a malformed body surfaces as an error from your own code, not from ModelRunner.
+
+Request bodies are accepted up to **10 MB**. For anything larger, upload it first and pass a URL your container downloads — see [File uploads](/guides/file-uploads).
+
+## Reserved keys
+
+The same four top-level keys are reserved on every endpoint. Three of them work unchanged on deployments:
+
+| Key | On a deployment |
+| --- | --- |
+| `metadata` | Works. A flat string map of your own tags, stored on the request, never sent to the workload. Same limits as everywhere: 16 keys, values ≤512 characters. |
+| `webhook` | Works. Signed delivery on the same schedule, including the `completed` event for cancelled jobs. |
+| `webhook_events_filter` | Works. Requires `webhook`. |
+| `public` | **Refused.** Sending it returns `400`. |
+
+<Note>
+  Publication exists so a catalog model's runs can appear as public examples on that model's page. A deployment has no such surface, which is why `public` is rejected at submit.
+
+  The refusal is at submit only: `PATCH /requests/{requestId}/visibility` is not target-aware and will happily flip a deployment request public afterwards, which also exempts it from retention. Nothing surfaces it publicly, but do not do it.
+</Note>
+
+Because these keys are stripped before dispatch, a workload whose own input schema defines a field named `metadata`, `webhook`, `webhook_events_filter` or `public` cannot receive it through the raw body.
+
+## Results are verbatim
+
+`GET {response_url}` returns **your workload's own JSON**, exactly as your handler returned it:
+
+- No output schema and no validation. Whatever shape you return — object, array, string — comes back as `output`.
+- No media finalization. ModelRunner does not scan the output for image or video URLs, does not re-host them, and does not generate thumbnails. Files your workload writes are your responsibility.
+- One exception, and it is blunt: if the output contains a URL pointing at platform-internal infrastructure **anywhere**, the entire `output` is replaced by a placeholder string — not just that field — and it stays replaced, because deployment outputs are never re-hosted. If you hit this, change the workload to stop emitting those URLs (upload to your own storage, or return the bytes). Every other URL passes through untouched.
+
+Because the shape is arbitrary, SDK result types for deployment requests are `unknown` (JS) / `Any` (Python). Parse them yourself.
+
+Reading a failed run still follows the platform convention: `GET /requests/{requestId}` carries `billingStatus: "failed"` — the reliable signal — and `response_url` answers **422** with an `error` field whenever failure detail is available. See [Statuses & failure semantics](/api-reference/request-semantics).
+
+## Who can submit
+
+Deployment jobs are **owner-only**. Your API key can submit to your own deployments; another account's key gets a `403`, even if they know the endpoint.
+
+Submission is also gated on two live conditions:
+
+| Condition | Result |
+| --- | --- |
+| The deployment is not `active` or `hibernated` | `400` — the message names the current status (paused, draining, suspended…). |
+| Your available balance is at or below zero | `402` — top up. Available balance is your balance minus active credit holds. |
+
+<Warning>
+  A `hibernated` deployment **accepts** jobs but may not run them. Hibernation winds workers down and nothing restores them automatically, so the job is queued with `IN_QUEUE` and sits there — eventually force-failed by the platform's stuck-request sweep rather than served. Resume the deployment first, then submit. See [Hibernation](/guides/serverless-gpus/lifecycle#hibernation).
+</Warning>
+
+Beta admission applies to job submission too — see [Beta gating](/guides/serverless-gpus/overview#beta-gating).
+
+## Finding deployment requests later
+
+Deployment jobs land in the same request history as everything else, with two extra fields:
+
+| Field | Value |
+| --- | --- |
+| `targetKind` | `"deployment"` (catalog runs carry `"model"` or `"wrapper"`). |
+| `deploymentId` | The deployment's UUID. Null on non-deployment rows. |
+
+Filter the list by deployment:
+
+```bash
+curl -G https://queue.modelrunner.run/requests \
+  -H "Authorization: Key $MODELRUNNER_KEY" \
+  -d deploymentId=1f0b7a2e-6c1d-4f3a-9b8e-2d5c7a4e1f00 \
+  -d limit=20
+```
+
+`deploymentId` combines with `status`, `metadata` and pagination the same way `modelEndpoint` does. The dashboard's **Requests** tab on each deployment is this filter.
+
+## What deployments do not have
+
+| Feature | Why not |
+| --- | --- |
+| Public requests | Refused at submit — see above. |
+| Model pricing rate cards | Compute is billed by worker-seconds, not per request. `GET /models/pricing` has no deployment entry, and `totalPrice` on a deployment request is `0`. |
+| Cross-provider fallback | Fallback substitutes another catalog model. Your deployment has no substitute. |
+| An OpenAI-compatible chat route | Deployments are async queue endpoints only in this release, even when the workload happens to serve an LLM. |

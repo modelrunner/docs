@@ -1,0 +1,137 @@
+---
+title: "Serverless GPUs"
+description: "Run your own container workload on a ModelRunner GPU, called through the same queue API as the catalog — scale-to-zero, per-second billing, live workers and logs."
+icon: "microchip"
+---
+
+Serverless GPUs let you run **your own workload** on ModelRunner instead of only the models in our catalog. You pick a template and a GPU, and you get back a queue endpoint at `{username}/{alias}` that behaves exactly like a catalog model: submit, poll, webhooks, request history, and billing from the same prepaid balance.
+
+The live GPU catalog with current prices and availability is at [modelrunner.ai/serverless-gpus](https://modelrunner.ai/serverless-gpus).
+
+## What a Deployment is
+
+A **Deployment** is a named, user-owned serverless endpoint. It bundles three things:
+
+| Part | What you choose |
+| --- | --- |
+| **Workload** | A curated template plus its configuration (for example, an LLM server and the Hugging Face model id to serve). |
+| **GPU** | One SKU from the serverless GPU catalog. Its sell rate is frozen onto the deployment when you create it. |
+| **Scaling** | Max workers, idle timeout, per-job execution timeout, and an optional monthly spend cap. |
+
+Deployments are **scale-to-zero by default**: minimum workers is `0`, so you pay for worker time only while jobs are actually being served plus the idle window that follows. There are no always-on workers in this release.
+
+The alias lives in the same namespace as your models and wrappers — `alice/my-llm` cannot collide with a model or wrapper you already own. Aliases are lowercase alphanumeric with hyphens, 2–64 characters, and contain **no slashes**; a handful of names that would shadow platform path segments (`v1`, `requests`, `models`, `workers`, `logs`, `chat`, `stream`) are refused.
+
+## The GPU catalog
+
+Every serverless GPU SKU is a row in the public catalog, readable anonymously:
+
+```bash
+curl "https://api.modelrunner.run/gpus?serverless=true"
+```
+
+```json
+[
+  {
+    "id": "…",
+    "key": "gpu-a6000",
+    "name": "A6000",
+    "vram": 48,
+    "gpu": 1,
+    "pricePerSecond": 0.0006,
+    "availability": "high",
+    "serverlessEnabled": true
+  }
+]
+```
+
+| Field | Meaning |
+| --- | --- |
+| `key` | The stable SKU identifier you deploy against. |
+| `name` / `vram` | Display name and VRAM in GB. |
+| `gpu` | How many GPUs the SKU bundles. A `2x` SKU reports `2` — and its `pricePerSecond` already covers both, so there is never a separate multiplier. |
+| `pricePerSecond` | The sell rate. Multiply by 3600 for the hourly figure the catalog page shows. |
+| `availability` | `high`, `medium`, `low`, or `none` — refreshed hourly. A SKU at `none` has no capacity right now. |
+
+<Note>
+  Omit `?serverless=true` and you get every GPU row the platform prices against — which can include SKUs that only back catalog models and cannot be deployed. Always pass the filter when you are building a deployment picker.
+</Note>
+
+Pricing is **per SKU-second, full stop** — the rate on the row is what a running worker costs per second. See [**Billing**](/guides/serverless-gpus/billing) for how those seconds become charges.
+
+## Templates
+
+Deployments run curated templates only in this release: you supply configuration, never code. The catalog is public:
+
+```bash
+curl https://api.modelrunner.run/deployments/templates
+```
+
+Today that returns one template:
+
+| Key | Name | What it does |
+| --- | --- | --- |
+| `llm-server` | LLM Server (vLLM) | Serves any open-weights LLM by Hugging Face id on a dedicated serverless GPU. |
+
+Each template declares typed fields (`string`, `secret`, `number`, `select`) and a default GPU. Fields of kind `secret` — such as a Hugging Face token for gated models — are **write-only**: you set them, and no API ever reads them back. See [**Environment variables and secrets**](/guides/serverless-gpus/environment-variables).
+
+Bring-your-own container images are not available yet.
+
+## Statuses
+
+A deployment carries three independent signals. Read all three before concluding anything about why it is not serving traffic:
+
+| Field | Meaning |
+| --- | --- |
+| `status` | What is **observed**: `deploying`, `active`, `paused`, `suspended`, `hibernated`, `draining`, `failed`, `deleted`. |
+| `desiredState` | What **you** asked for: `active`, `paused`, or `deleted`. |
+| `suspendedReason` | Why the platform overrode you: `insufficient_balance`, `spend_cap`, or `operator`. Null otherwise. |
+
+`status: "suspended"` with `desiredState: "active"` means you want it running and the platform stopped it — the reason field says which safety rule fired. See [**Lifecycle**](/guides/serverless-gpus/lifecycle).
+
+## Beta gating
+
+Serverless GPUs are behind a beta allowlist. The gate applies to **admission only**:
+
+| Gated | Never gated |
+| --- | --- |
+| Creating a deployment | Reading deployments, workers, usage, events and logs |
+| Resuming a paused deployment | Pausing a deployment |
+| Updating configuration | Deleting a deployment |
+| Submitting jobs | |
+
+That split is deliberate: if the beta is closed while you have live deployments, you can always see them, stop them and delete them. Nothing ever strands billable workers you cannot reach.
+
+Ask whether your account is admitted:
+
+```bash
+curl https://api.modelrunner.run/deployments/capability \
+  -H "Authorization: Key $MODELRUNNER_KEY"
+```
+
+```json
+{ "canCreate": true }
+```
+
+<Note>
+  This route, and the other owner-scoped deployment reads and lifecycle controls, work with your API key today but are not yet part of the stable public API — shapes may change until the deployment management SDK ships. The [queue API](/guides/serverless-gpus/queue-api) is stable; build automation against that.
+</Note>
+
+A gated call returns **403** with a message naming the reason — either that Serverless GPUs are not enabled on the platform yet, or that they are in a limited beta your account is not in. Email [support@modelrunner.ai](mailto:support@modelrunner.ai) to request access.
+
+## Where to next
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/guides/serverless-gpus/quickstart">
+    Create your first deployment and run a job through it.
+  </Card>
+  <Card title="Queue API" icon="paper-plane" href="/guides/serverless-gpus/queue-api">
+    Submitting jobs, reading results, filtering request history.
+  </Card>
+  <Card title="Billing" icon="credit-card" href="/guides/serverless-gpus/billing">
+    Worker-seconds, credit holds and hourly settlement.
+  </Card>
+  <Card title="Quotas" icon="gauge" href="/guides/serverless-gpus/quotas">
+    Deployment, worker and platform capacity limits.
+  </Card>
+</CardGroup>

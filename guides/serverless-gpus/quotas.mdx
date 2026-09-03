@@ -1,0 +1,79 @@
+---
+title: "Quotas and capacity"
+description: "Per-account deployment and worker limits, the platform-wide capacity ceiling, and what to do when you hit either."
+icon: "gauge"
+---
+
+Two different limits can refuse a deployment: **your account's quota**, and the **platform's total serverless capacity**. They fail differently and they need different responses.
+
+## Your quota
+
+Defaults for a beta account:
+
+| Limit | Default |
+| --- | --- |
+| Live deployments per account | 2 |
+| Max workers on one deployment | 3 |
+| Sum of max workers across your deployments | 5 |
+
+The third is the one people trip over: it is the **sum of configured `workersMax`**, not the number of workers currently running. Two deployments at `workersMax: 3` each already total 6 and exceed the cap, even if both are scaled to zero and costing nothing.
+
+Exceeding any of them returns a `400` naming the limit:
+
+```json
+{ "error": "Your total max workers across deployments is capped at 5 (contact support to raise it)" }
+```
+
+The same checks run on **update**: raising `workersMax` on an existing deployment re-evaluates your totals. Resume does not re-check them — a paused deployment never gave its share back, so there is nothing to re-evaluate.
+
+<Tip>
+  Delete deployments you are done with rather than leaving them paused. A paused deployment still occupies your deployment count and its `workersMax` still counts against your worker total.
+</Tip>
+
+To raise your limits, email [support@modelrunner.ai](mailto:support@modelrunner.ai) with what you are running and the scale you need.
+
+## Platform capacity
+
+Serverless GPU capacity is finite and shared. When the platform-wide ceiling is reached, **creating** a deployment returns **409**:
+
+```json
+{ "error": "The platform is at serverless capacity right now. Try a lower max-workers value or try again later." }
+```
+
+Raising `workersMax` on an existing deployment hits the same ceiling but reports it as a **400**:
+
+```json
+{ "error": "The platform is at serverless capacity right now; try again later." }
+```
+
+This is not about your account — you can be well inside your quota and still get it. What to do:
+
+- **Ask for fewer workers.** `workersMax: 1` frequently fits when `3` does not, and scale-to-zero means a lower ceiling costs you nothing when idle.
+- **Retry later.** Capacity frees up as other deployments drain.
+- **Do not retry in a tight loop.** The answer will not change within seconds, and the queue API's [rate limits](/api-reference/request-semantics#rate-limits) apply here too.
+
+## GPU availability
+
+Capacity is also per-SKU. Each GPU row in the catalog carries an `availability` badge, refreshed hourly:
+
+| Badge | What it means |
+| --- | --- |
+| `high` / `medium` | Workers should start promptly. |
+| `low` | Capacity is tight; workers may sit `throttled` before they start. |
+| `none` | No capacity for this SKU right now. Pick another. |
+
+A `throttled` worker on the [workers panel](/guides/serverless-gpus/lifecycle#the-workers-panel) is this problem showing up at runtime: the deployment is fine, there is simply nowhere to place the worker at that moment. Throttled workers are not billed.
+
+If a SKU you depend on sits at `low` or `none` repeatedly, deploy against a different one — the catalog spans several VRAM tiers, and a job that fits in 48 GB does not need to wait for 80.
+
+## Other limits worth knowing
+
+| Limit | Value |
+| --- | --- |
+| Submit body size | 10 MB — pass a URL for anything larger |
+| Environment variables | 32 per deployment, values ≤ 4096 characters |
+| Concurrent log streams | 5 per account |
+| Execution timeout | 5 seconds to 2 hours, per deployment |
+| Idle timeout | 1 to 60 seconds |
+
+Balance limits are covered separately in [Billing](/guides/serverless-gpus/billing) — a credit hold you cannot cover refuses creation with a `402`, which is a funding problem rather than a quota one.

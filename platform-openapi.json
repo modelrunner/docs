@@ -3,7 +3,7 @@
   "info": {
     "title": "ModelRunner Platform API",
     "version": "1.0.0",
-    "description": "Platform APIs: model catalog, search and collections; model pricing rate cards; file uploads and your asset library; account balance and usage; and webhook delivery management. Catalog reads are public; account-scoped routes authenticate with your API key (`Authorization: Key <MODELRUNNER_KEY>`). Request lifecycle endpoints (submit/status/result and the request list) live on the queue host \u2014 see the Queue API reference."
+    "description": "Platform APIs: model catalog, search and collections; model pricing rate cards; the Serverless GPU catalog and deployment templates; file uploads and your asset library; account balance and usage; and webhook delivery management. Catalog reads are public; account-scoped routes authenticate with your API key (`Authorization: Key <MODELRUNNER_KEY>`). Request lifecycle endpoints (submit/status/result and the request list) live on the queue host — see the Queue API reference."
   },
   "servers": [
     {
@@ -143,7 +143,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Curated example request ids \u2014 fetch via the model detail page."
+            "description": "Curated example request ids — fetch via the model detail page."
           },
           "contextWindow": {
             "type": [
@@ -308,7 +308,7 @@
               "tokenPricing": {
                 "type": "object",
                 "additionalProperties": true,
-                "description": "Per-1M-token rates by bucket (`text.input`, `text.output`, `cachedInput`, \u2026), optional rounding increment, and an optional `displayExample` for non-text outputs."
+                "description": "Per-1M-token rates by bucket (`text.input`, `text.output`, `cachedInput`, …), optional rounding increment, and an optional `displayExample` for non-text outputs."
               }
             }
           }
@@ -356,7 +356,7 @@
           },
           "endpoint": {
             "type": "string",
-            "description": "`ownerName/alias` \u2014 the value you submit requests to."
+            "description": "`ownerName/alias` — the value you submit requests to."
           },
           "name": {
             "type": "string"
@@ -403,7 +403,7 @@
           },
           "rootModel": {
             "type": "string",
-            "description": "Model family key \u2014 results sharing it are variants (price/speed tiers)."
+            "description": "Model family key — results sharing it are variants (price/speed tiers)."
           },
           "defaultBaseModel": {
             "type": "string",
@@ -463,7 +463,7 @@
         "properties": {
           "id": {
             "type": "string",
-            "description": "Also the `webhook-id` header value \u2014 your dedupe key."
+            "description": "Also the `webhook-id` header value — your dedupe key."
           },
           "requestId": {
             "type": "string"
@@ -589,7 +589,7 @@
       },
       "File": {
         "type": "object",
-        "description": "One asset in your library \u2014 a file you uploaded or an output a model produced for you.",
+        "description": "One asset in your library — a file you uploaded or an output a model produced for you.",
         "properties": {
           "id": {
             "type": "string",
@@ -604,7 +604,7 @@
               "string",
               "null"
             ],
-            "description": "Lightweight generated preview (`.webp` image / `.webm` motion preview) for request outputs. Null for uploads, audio, and older rows \u2014 fall back to `url`."
+            "description": "Lightweight generated preview (`.webp` image / `.webm` motion preview) for request outputs. Null for uploads, audio, and older rows — fall back to `url`."
           },
           "userId": {
             "type": [
@@ -670,7 +670,7 @@
               "output",
               "thumbnail"
             ],
-            "description": "`input` \u2014 the file was passed into the request; `output` \u2014 the request produced it."
+            "description": "`input` — the file was passed into the request; `output` — the request produced it."
           },
           "position": {
             "type": "integer",
@@ -699,7 +699,7 @@
               "string",
               "null"
             ],
-            "description": "Lightweight generated preview (`.webp` image / `.webm` motion preview) for request outputs. Null for uploads, audio, and older rows \u2014 fall back to `url`."
+            "description": "Lightweight generated preview (`.webp` image / `.webm` motion preview) for request outputs. Null for uploads, audio, and older rows — fall back to `url`."
           },
           "userId": {
             "type": [
@@ -925,7 +925,7 @@
           },
           "modelCount": {
             "type": "integer",
-            "description": "Number of models returned in `models` \u2014 private members are withheld and are not counted."
+            "description": "Number of models returned in `models` — private members are withheld and are not counted."
           },
           "models": {
             "type": "array",
@@ -989,6 +989,127 @@
             }
           }
         }
+      },
+      "Gpu": {
+        "type": "object",
+        "description": "One GPU SKU. `pricePerSecond` is the sell rate for the whole SKU — a bundled SKU (`gpu` > 1) is already priced for every GPU it contains, so nothing multiplies it further.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string",
+            "description": "Stable SKU identifier, e.g. `gpu-a6000`. This is what a deployment is created against.",
+            "examples": [
+              "gpu-a6000"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "examples": [
+              "A6000"
+            ]
+          },
+          "vram": {
+            "type": "number",
+            "description": "VRAM in GB."
+          },
+          "gpu": {
+            "type": "number",
+            "description": "How many GPUs the SKU bundles."
+          },
+          "pricePerSecond": {
+            "type": "number",
+            "description": "Sell rate per SKU-second. Multiply by 3600 for the hourly figure."
+          },
+          "availability": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "none",
+              "low",
+              "medium",
+              "high",
+              null
+            ],
+            "description": "Live capacity signal, refreshed hourly. `none` means no capacity for this SKU right now."
+          },
+          "serverlessEnabled": {
+            "type": "boolean",
+            "description": "True when the SKU can back a Serverless GPU deployment."
+          }
+        }
+      },
+      "DeploymentTemplateField": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "string",
+              "secret",
+              "number",
+              "select"
+            ],
+            "description": "`secret` fields are write-only: stored encrypted, never returned."
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Allowed values, for `select` fields."
+          },
+          "default": {
+            "description": "Default value, when the template declares one."
+          }
+        }
+      },
+      "DeploymentTemplate": {
+        "type": "object",
+        "description": "A curated workload a Serverless GPU deployment can be created from. Templates take configuration, not code — the container image behind them is platform-managed.",
+        "properties": {
+          "key": {
+            "type": "string",
+            "examples": [
+              "llm-server"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "examples": [
+              "LLM Server (vLLM)"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "defaultGpuKey": {
+            "type": "string",
+            "description": "The GPU SKU key the wizard preselects."
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeploymentTemplateField"
+            }
+          }
+        }
       }
     }
   },
@@ -996,7 +1117,7 @@
     "/models": {
       "get": {
         "summary": "List Models",
-        "description": "Paginated public model catalog with free-text search and structured filters. Private models are unlisted here (direct reads by endpoint still resolve them \u2014 'private' means unlisted, not access-controlled).",
+        "description": "Paginated public model catalog with free-text search and structured filters. Private models are unlisted here (direct reads by endpoint still resolve them — 'private' means unlisted, not access-controlled).",
         "parameters": [
           {
             "name": "search",
@@ -1115,7 +1236,7 @@
     "/models/facets": {
       "get": {
         "summary": "Get Catalog Facets",
-        "description": "Counts of catalog models grouped by input\u2192output modality pair and by capability, under the same filters as List Models. Only public models are counted, so the totals always agree with what List Models returns.",
+        "description": "Counts of catalog models grouped by input→output modality pair and by capability, under the same filters as List Models. Only public models are counted, so the totals always agree with what List Models returns.",
         "parameters": [
           {
             "name": "search",
@@ -1157,7 +1278,7 @@
     "/models/featured": {
       "get": {
         "summary": "List Featured Models",
-        "description": "The curated featured set, unpaginated. Same public projection as List Models \u2014 provider internals are never included.",
+        "description": "The curated featured set, unpaginated. Same public projection as List Models — provider internals are never included.",
         "responses": {
           "200": {
             "description": "Featured models.",
@@ -1335,7 +1456,7 @@
     "/collections": {
       "get": {
         "summary": "List Collections",
-        "description": "Published model collections \u2014 curated groupings of related models. Private member models are withheld, and `modelCount` counts only the models actually returned.",
+        "description": "Published model collections — curated groupings of related models. Private member models are withheld, and `modelCount` counts only the models actually returned.",
         "responses": {
           "200": {
             "description": "Published collections.",
@@ -1441,7 +1562,7 @@
                   },
                   "relay": {
                     "type": "boolean",
-                    "description": "Also mint `relay_upload_url` \u2014 a first-party `PUT` URL on this API host that streams to the same object server-side. For clients whose egress allowlist rejects the raw AWS S3 host."
+                    "description": "Also mint `relay_upload_url` — a first-party `PUT` URL on this API host that streams to the same object server-side. For clients whose egress allowlist rejects the raw AWS S3 host."
                   }
                 }
               }
@@ -1458,7 +1579,7 @@
                   "properties": {
                     "upload_url": {
                       "type": "string",
-                      "description": "Presigned S3 `PUT` URL. Valid 5 minutes. Send no `Authorization` header \u2014 the URL carries its own credentials."
+                      "description": "Presigned S3 `PUT` URL. Valid 5 minutes. Send no `Authorization` header — the URL carries its own credentials."
                     },
                     "file_url": {
                       "type": "string",
@@ -1489,7 +1610,7 @@
     "/storage/upload/initiate-multipart": {
       "post": {
         "summary": "Initiate Multipart Upload",
-        "description": "Start a multipart upload for a large file. `fileUrl` is the canonical public URL \u2014 keep it; it is the one to pass as a model input once the upload completes.",
+        "description": "Start a multipart upload for a large file. `fileUrl` is the canonical public URL — keep it; it is the one to pass as a model input once the upload completes.",
         "security": [
           {
             "apiKeyAuth": []
@@ -1559,7 +1680,7 @@
     "/storage/upload/multipart-url": {
       "get": {
         "summary": "Get Multipart Part URL",
-        "description": "Presign one part of an in-flight multipart upload. Part numbers start at 1; every part except the last must be at least 5 MiB. Capture the `ETag` response header from each part `PUT` \u2014 Complete Multipart Upload needs it.",
+        "description": "Presign one part of an in-flight multipart upload. Part numbers start at 1; every part except the last must be at least 5 MiB. Capture the `ETag` response header from each part `PUT` — Complete Multipart Upload needs it.",
         "security": [
           {
             "apiKeyAuth": []
@@ -1699,7 +1820,7 @@
                   "properties": {
                     "fileUrl": {
                       "type": "string",
-                      "description": "S3's native location URL for the assembled object \u2014 not the public URL. See the description."
+                      "description": "S3's native location URL for the assembled object — not the public URL. See the description."
                     }
                   }
                 }
@@ -1722,7 +1843,7 @@
     "/storage/upload/chunk": {
       "post": {
         "summary": "Upload File in Chunks",
-        "description": "Send a file inline as small base64 chunks, assembled server-side. This exists for clients that can reach neither the S3 host nor the relay \u2014 prefer Initiate Upload everywhere else.\n\nOmit `upload_id` on the first chunk; the response mints one to thread through the rest. Set `is_last_part` on the final chunk. Chunks may arrive out of order; the upload completes when every index from 0 to the last is present, and the response then carries `file_url`. Limits: 1 MiB decoded per chunk, 50 MiB per upload, 10,000 parts, and abandoned parts are discarded after an hour.\n\n`expected_decoded_bytes` is the truncation guard: a mismatch rejects that chunk alone, so resend only that `part_index`.",
+        "description": "Send a file inline as small base64 chunks, assembled server-side. This exists for clients that can reach neither the S3 host nor the relay — prefer Initiate Upload everywhere else.\n\nOmit `upload_id` on the first chunk; the response mints one to thread through the rest. Set `is_last_part` on the final chunk. Chunks may arrive out of order; the upload completes when every index from 0 to the last is present, and the response then carries `file_url`. Limits: 1 MiB decoded per chunk, 50 MiB per upload, 10,000 parts, and abandoned parts are discarded after an hour.\n\n`expected_decoded_bytes` is the truncation guard: a mismatch rejects that chunk alone, so resend only that `part_index`.",
         "security": [
           {
             "apiKeyAuth": []
@@ -1756,7 +1877,7 @@
                   },
                   "base64": {
                     "type": "string",
-                    "description": "This chunk's bytes, base64-encoded. ~32\u201348 KB per chunk works well."
+                    "description": "This chunk's bytes, base64-encoded. ~32–48 KB per chunk works well."
                   },
                   "file_name": {
                     "type": "string"
@@ -1818,7 +1939,7 @@
             }
           },
           "400": {
-            "description": "Chunk failed validation \u2014 length mismatch, hash mismatch, or a cap exceeded.",
+            "description": "Chunk failed validation — length mismatch, hash mismatch, or a cap exceeded.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1843,7 +1964,7 @@
     "/storage/upload/relay": {
       "put": {
         "summary": "Relay Upload Bytes",
-        "description": "First-party fallback for the presigned `PUT`: send the raw bytes here and they are streamed to storage server-side. Call this only with the `relay_upload_url` returned by Initiate Upload with `relay: true` \u2014 the `upload_token` in that URL is the sole credential, is bound to one object key and content type, and expires in 5 minutes. Do not send an `Authorization` header. Maximum 200 MiB.",
+        "description": "First-party fallback for the presigned `PUT`: send the raw bytes here and they are streamed to storage server-side. Call this only with the `relay_upload_url` returned by Initiate Upload with `relay: true` — the `upload_token` in that URL is the sole credential, is bound to one object key and content type, and expires in 5 minutes. Do not send an `Authorization` header. Maximum 200 MiB.",
         "security": [],
         "parameters": [
           {
@@ -1877,7 +1998,7 @@
                   "properties": {
                     "file_url": {
                       "type": "string",
-                      "description": "Canonical public URL \u2014 the same `file_url` the initiate returned."
+                      "description": "Canonical public URL — the same `file_url` the initiate returned."
                     }
                   }
                 }
@@ -1910,7 +2031,7 @@
     "/files": {
       "get": {
         "summary": "List Files",
-        "description": "Your asset library, newest first \u2014 every file you uploaded plus every output a model produced for you. Always scoped to the authenticated account.\n\nFiles reach this library from three places: [uploads](/guides/file-uploads), request outputs at finalization, and inputs you pass to a request (which links the upload you already own). URLs pasted from elsewhere are not recorded.",
+        "description": "Your asset library, newest first — every file you uploaded plus every output a model produced for you. Always scoped to the authenticated account.\n\nFiles reach this library from three places: [uploads](/guides/file-uploads), request outputs at finalization, and inputs you pass to a request (which links the upload you already own). URLs pasted from elsewhere are not recorded.",
         "security": [
           {
             "apiKeyAuth": []
@@ -1934,7 +2055,7 @@
             },
             "style": "form",
             "explode": true,
-            "description": "Repeat to union buckets. `upload` \u2014 files you uploaded; `output` \u2014 files a model produced for you; `input` \u2014 your uploads that a request consumed. `external` rows are excluded unless you ask for them explicitly."
+            "description": "Repeat to union buckets. `upload` — files you uploaded; `output` — files a model produced for you; `input` — your uploads that a request consumed. `external` rows are excluded unless you ask for them explicitly."
           },
           {
             "name": "tagIds",
@@ -2166,7 +2287,7 @@
     "/files/by-url": {
       "get": {
         "summary": "Get File by URL",
-        "description": "Look a file up by its public URL when you hold the URL but not the id \u2014 for example to check whether an output you are displaying is one of yours, and whether you have favorited it.",
+        "description": "Look a file up by its public URL when you hold the URL but not the id — for example to check whether an output you are displaying is one of yours, and whether you have favorited it.",
         "security": [
           {
             "apiKeyAuth": []
@@ -2205,7 +2326,7 @@
             }
           },
           "404": {
-            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "description": "No such file, or it belongs to another account — the two are deliberately indistinguishable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2259,7 +2380,7 @@
             }
           },
           "404": {
-            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "description": "No such file, or it belongs to another account — the two are deliberately indistinguishable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2272,7 +2393,7 @@
       },
       "delete": {
         "summary": "Delete File",
-        "description": "Removes the file from your library and drops its request links. The stored object is **not** deleted and its URL keeps resolving \u2014 and once the record is gone there is nothing left to find the object by, so set an expiry at [upload time](/guides/data-retention) for anything you want cleaned up automatically.",
+        "description": "Removes the file from your library and drops its request links. The stored object is **not** deleted and its URL keeps resolving — and once the record is gone there is nothing left to find the object by, so set an expiry at [upload time](/guides/data-retention) for anything you want cleaned up automatically.",
         "security": [
           {
             "apiKeyAuth": []
@@ -2304,7 +2425,7 @@
             }
           },
           "404": {
-            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "description": "No such file, or it belongs to another account — the two are deliberately indistinguishable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2319,7 +2440,7 @@
     "/files/{fileId}/favorite": {
       "post": {
         "summary": "Favorite File",
-        "description": "Marks the file as a favorite. Idempotent. A favorited file is also exempt from retention sweeps \u2014 see [data retention](/guides/data-retention).",
+        "description": "Marks the file as a favorite. Idempotent. A favorited file is also exempt from retention sweeps — see [data retention](/guides/data-retention).",
         "security": [
           {
             "apiKeyAuth": []
@@ -2351,7 +2472,7 @@
             }
           },
           "404": {
-            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "description": "No such file, or it belongs to another account — the two are deliberately indistinguishable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2364,7 +2485,7 @@
       },
       "delete": {
         "summary": "Unfavorite File",
-        "description": "Removes the favorite. Idempotent \u2014 unfavoriting a file that was not favorited succeeds.",
+        "description": "Removes the favorite. Idempotent — unfavoriting a file that was not favorited succeeds.",
         "security": [
           {
             "apiKeyAuth": []
@@ -2401,7 +2522,7 @@
     "/files/{fileId}/tags": {
       "post": {
         "summary": "Assign Tag to File",
-        "description": "Tags one of your files. Pass `tagId` for an existing tag, or `name` to create-or-reuse one by case-insensitive name \u2014 exactly one of the two. Tagging also exempts a file from retention sweeps.",
+        "description": "Tags one of your files. Pass `tagId` for an existing tag, or `name` to create-or-reuse one by case-insensitive name — exactly one of the two. Tagging also exempts a file from retention sweeps.",
         "security": [
           {
             "apiKeyAuth": []
@@ -2471,7 +2592,7 @@
             }
           },
           "404": {
-            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "description": "No such file, or it belongs to another account — the two are deliberately indistinguishable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2527,7 +2648,7 @@
             }
           },
           "404": {
-            "description": "No such file, or it belongs to another account \u2014 the two are deliberately indistinguishable.",
+            "description": "No such file, or it belongs to another account — the two are deliberately indistinguishable.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2581,7 +2702,7 @@
       },
       "post": {
         "summary": "Create Tag",
-        "description": "Creates a tag. Idempotent on the case-insensitive name \u2014 an existing tag with that name is returned unchanged.",
+        "description": "Creates a tag. Idempotent on the case-insensitive name — an existing tag with that name is returned unchanged.",
         "security": [
           {
             "apiKeyAuth": []
@@ -2745,7 +2866,7 @@
     "/billing/usage-summary": {
       "get": {
         "summary": "Get Usage Summary",
-        "description": "Spend and request statistics for the authenticated account over a trailing window. `totalSpent` sums what was actually charged (exact decimal string); `successRate` excludes failed generations (`billingStatus: 'failed'`), not just failed requests.",
+        "description": "Spend and request statistics for the authenticated account over a trailing window. `totalSpent` sums what was actually charged (exact decimal string), catalog inference and Serverless GPU worker time together — `serverlessSpent` breaks out the latter; `successRate` excludes failed generations (`billingStatus: 'failed'`), not just failed requests.",
         "security": [
           {
             "apiKeyAuth": []
@@ -2778,6 +2899,10 @@
                     },
                     "totalSpent": {
                       "type": "string"
+                    },
+                    "serverlessSpent": {
+                      "type": "string",
+                      "description": "The Serverless GPU share of `totalSpent` — settled deployment worker-time charges. Always present; `\"0\"` on accounts with no serverless usage."
                     },
                     "requestCount": {
                       "type": "integer"
@@ -2834,7 +2959,7 @@
     "/webhooks/default/secret": {
       "get": {
         "summary": "Get Webhook Secret",
-        "description": "The account's webhook signing secret (`{ \"key\": \"whsec_\u2026\" }`), used to verify Standard-Webhooks signatures on deliveries. Created on first read.",
+        "description": "The account's webhook signing secret (`{ \"key\": \"whsec_…\" }`), used to verify Standard-Webhooks signatures on deliveries. Created on first read.",
         "security": [
           {
             "apiKeyAuth": []
@@ -3084,6 +3209,61 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gpus": {
+      "get": {
+        "summary": "List GPUs",
+        "description": "The public GPU catalog. Pass `serverless=true` for the SKUs offered for [Serverless GPU deployments](/guides/serverless-gpus/overview) — without the filter the response can also include rows that only price catalog models and cannot be deployed. No API key required.",
+        "parameters": [
+          {
+            "name": "serverless",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "description": "Set to `true` to return only deployable serverless SKUs."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "GPU SKUs.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Gpu"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/deployments/templates": {
+      "get": {
+        "summary": "List Deployment Templates",
+        "description": "The curated workload templates a Serverless GPU deployment can be created from, with their configuration fields. No API key required. Creating a deployment is done in the dashboard in this release.",
+        "responses": {
+          "200": {
+            "description": "Available templates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeploymentTemplate"
+                  }
                 }
               }
             }

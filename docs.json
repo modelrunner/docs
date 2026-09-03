@@ -34,6 +34,19 @@
             ]
           },
           {
+            "group": "Serverless GPUs",
+            "pages": [
+              "guides/serverless-gpus/overview",
+              "guides/serverless-gpus/quickstart",
+              "guides/serverless-gpus/queue-api",
+              "guides/serverless-gpus/cancellation",
+              "guides/serverless-gpus/billing",
+              "guides/serverless-gpus/environment-variables",
+              "guides/serverless-gpus/lifecycle",
+              "guides/serverless-gpus/quotas"
+            ]
+          },
+          {
             "group": "Platform features",
             "pages": [
               "guides/language-models",
@@ -73,6 +86,7 @@
               "POST /{ownerName}/{modelName}",
               "GET /{ownerName}/{modelName}/requests/{requestId}/status",
               "GET /{ownerName}/{modelName}/requests/{requestId}",
+              "PUT /{ownerName}/{modelName}/requests/{requestId}/cancel",
               "GET /requests",
               "GET /requests/{requestId}",
               "GET /requests/stream",
@@ -95,6 +109,14 @@
                   "GET /search",
                   "GET /collections",
                   "GET /collections/{slug}"
+                ]
+              },
+              {
+                "group": "Serverless GPUs",
+                "openapi": "platform-openapi.json",
+                "pages": [
+                  "GET /gpus",
+                  "GET /deployments/templates"
                 ]
               },
               {

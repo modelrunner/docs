@@ -16,16 +16,37 @@ that surface actually carries:
 | `GET /requests/stream` (SSE) | Same item shape as the list — read `billingStatus` on each `update` event. |
 | Status polling (`status_url`) | Does **not** expose `billingStatus`. Use it to know when the request is terminal, then fetch the result. |
 | Result retrieval (`response_url`) | A failed generation returns **HTTP 422** with an `error` field; a success returns 200 with `output`. |
-| Webhooks | The `completed` event fires for both outcomes — inspect the delivered payload's `error`/`output`. |
+| Webhooks | The `completed` event fires for every terminal outcome, cancellation included — inspect the delivered payload's `error`/`output`. |
 
 <Warning>
 A client that treats `status: "COMPLETED"` as success will show failed generations as
 successful. Always branch on the surface's own signal above.
 </Warning>
 
+## Terminal states
+
+`COMPLETED`, `FAILED` and `CANCELLED` are terminal — a request never transitions away from them.
+Two of the three carry caveats:
+
+- **`FAILED` is rare.** A generation that fails at the provider is normalized to `COMPLETED` (see
+  above); `FAILED` is what the platform writes when it force-fails a request that got stuck. A job
+  that exceeds a [deployment's execution timeout](/guides/serverless-gpus/cancellation#timeouts)
+  follows the same normalization — `COMPLETED` with `billingStatus: "failed"` — not a resting
+  `FAILED`.
+- **`CANCELLED` is reachable on deployment jobs.** Pollers must include it in their terminal set or
+  they will spin forever on a cancelled job.
+
 ## Cancellation
 
-Request cancellation is **not currently supported**. The `cancel_url` returned on submit is
+Cancellation depends on what the endpoint is.
+
+**Serverless GPU deployments: cancel is real.** `PUT` (or `GET`) the `cancel_url` and the job is
+stopped, the request goes terminal on `CANCELLED` with `billingStatus: "failed"` (zero charge), and
+a `completed` webhook fires. An unconfirmed stop is never converted into a local `CANCELLED` — the
+response carries the request's real state instead, which may be `COMPLETED`. See
+[Cancel and terminal states](/guides/serverless-gpus/cancellation).
+
+**Models and wrappers: cancellation is not supported.** The `cancel_url` returned on submit is
 reserved: requesting it returns the same body as `status_url` and does not stop the request.
 
 ## Visibility

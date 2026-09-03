@@ -1,0 +1,67 @@
+---
+title: "Environment variables and secrets"
+description: "How deployment env vars are stored, what the API will and will not return, and exactly how far their secrecy goes."
+icon: "key"
+---
+
+Your workload gets its configuration from environment variables — the ones a template derives from its own fields, plus any you set yourself. Both are treated as secrets from day one.
+
+## Write-only by design
+
+Env values are **never returned**. Not by the API, not by the dashboard, not to you. A deployment reports only the names:
+
+```json
+{
+  "alias": "my-llm",
+  "envKeys": ["OPENAI_API_KEY", "S3_BUCKET"],
+  "templateConfig": { "modelId": "Qwen/Qwen2.5-7B-Instruct" }
+}
+```
+
+Template fields of kind `secret` go one step further: they are stored in the encrypted envelope and **omitted entirely** from `templateConfig` — the key is absent, not blanked, so nothing in the API tells you whether a secret is set. Non-secret template config is stored in the clear so it can be displayed and edited.
+
+Values are encrypted at rest with AES-256-GCM.
+
+<Warning>
+  **Keep your own copy of every value you set.** There is no recovery path — a value you cannot remember can only be replaced, and replacing it triggers a rolling update.
+</Warning>
+
+## The disclosure that matters
+
+Encryption at rest is not the whole story, and it would be dishonest to leave it there:
+
+<Warning>
+  **Env values are delivered to the compute layer as plain environment variables.** They are decrypted when a deployment is created or updated and handed to the container runtime as ordinary process environment, exactly as if you had passed `-e KEY=value` to `docker run`. Anything with access to your running container — including your own workload's logs, if you print them — can read them.
+
+  They are protected from *readers of the ModelRunner API*, not from the runtime that executes your code.
+</Warning>
+
+Practical consequences:
+
+- Do not print env values from your handler. Deployment logs are streamed to the dashboard, and your own workload's output is not filtered for your secrets.
+- Prefer narrowly-scoped, rotatable credentials — a read-only token for one bucket beats an account-wide key.
+- If a value leaks, rotate it at the source. Replacing it on the deployment stops the old value from being re-provisioned, but does not un-leak it.
+
+## Rules
+
+| Rule | Value |
+| --- | --- |
+| Name format | `UPPER_SNAKE_CASE` — starts with a letter, then letters, digits and underscores, up to 64 characters |
+| Value length | ≤ 4096 characters |
+| Count | ≤ 32 variables per deployment |
+| Reserved names | `PORT`, `PORT_HEALTH`, `HEALTH_CHECK_PATH`, `MODEL_NAME` |
+
+Reserved names belong to the runtime contract between the platform and your container; setting one is refused with a `400` naming the variable. Every other name is yours.
+
+## Updating
+
+Env changes are a rolling update: the new configuration is applied and workers pick it up as they cycle. Workers already running the old configuration are reported with `stale: true` on the Workers panel until they are replaced.
+
+Two semantics are worth knowing before you edit:
+
+- **Sending `env` replaces your map exactly.** Keys you omit are removed. `"env": {}` genuinely clears every variable you set — which is what makes a compromised value removable.
+- **Omitting `env` entirely carries your variables forward** unchanged, so an unrelated edit (say, a new max context length) never silently drops them.
+
+Template-derived variables are rebuilt from the template configuration on every update. The one exception is a template's **secret** fields: if the new configuration does not re-supply the secret, the stored value carries over — so editing an unrelated setting does not force you to re-enter a token you can no longer read.
+
+Where a name is defined by both your map and the template, **your value wins**.

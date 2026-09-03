@@ -1,0 +1,146 @@
+---
+title: "Lifecycle"
+description: "Pause, resume, update and delete a deployment — and what the workers panel and live logs tell you while it runs."
+icon: "arrows-rotate"
+---
+
+A deployment exists until you delete it. Between creation and deletion you can stop it, restart it, and change its configuration in place, all from **Settings → Serverless GPUs → your deployment**.
+
+<Note>
+  The owner-scoped routes shown on this page work with your API key today, but they are not yet part of the stable public API: shapes may change until the deployment management SDK ships. Creating and updating deployments is dashboard-only in this release. Build automation against the [queue API](/guides/serverless-gpus/queue-api), which is stable.
+</Note>
+
+## Pause and resume
+
+**Pausing** drives workers to zero and stops the deployment accepting jobs. The endpoint stays reserved, the configuration is kept, and the [credit hold](/guides/serverless-gpus/billing#the-credit-hold) is released once the platform observes worker count at zero.
+
+```bash
+curl -X POST https://api.modelrunner.run/deployments/$DEPLOYMENT_ID/pause \
+  -H "Authorization: Key $MODELRUNNER_KEY"
+```
+
+A deployment can be paused from `active` or `hibernated`; anything else is refused with a `400` naming the current status.
+
+**Resuming** restores workers and re-opens job submission. It is the admission direction, so it re-runs the funding and access gates:
+
+- Beta access is checked again.
+- The credit hold is re-reserved at the deployment's current scale — a `402` here means your balance no longer covers it.
+- A deployment suspended for hitting its `spendCapUsdMonthly` refuses to resume until you raise or remove the cap.
+
+Quotas are not re-checked on resume, and do not need to be: a paused deployment never released its `workersMax` back to your allowance in the first place ([Quotas](/guides/serverless-gpus/quotas#your-quota)).
+
+Resume works from `paused`, `suspended` and `hibernated`.
+
+## Hibernation
+
+A deployment left idle long enough is hibernated by the platform: workers are wound down and `status` becomes `hibernated`. Your configuration is untouched.
+
+The platform deliberately does **not** restore it on its own — resuming is an explicit action, so it re-runs the funding and access gates against your account as it stands today rather than as it stood weeks ago.
+
+<Warning>
+  A hibernated deployment still **accepts** jobs, but nothing wakes it to run them: the job queues and is eventually force-failed rather than served. Resume before you submit.
+</Warning>
+
+## Updating configuration
+
+Updates are **rolling**: the new configuration is applied to the endpoint and workers pick it up as they cycle. Nothing is torn down and rebuilt.
+
+You can change:
+
+| Setting | Notes |
+| --- | --- |
+| Template configuration | Re-resolves the workload — for example, serving a different model id. |
+| Environment variables | See [Environment variables and secrets](/guides/serverless-gpus/environment-variables#updating). |
+| Max workers | Re-checks your quotas and resizes the credit hold. A `402` reverts the scale change. |
+| Idle timeout | 1–60 seconds. |
+| Execution timeout | 5 seconds to 2 hours. |
+| Monthly spend cap | Set, change, or clear. |
+| Display name | Cosmetic. |
+
+Updates are refused while a deployment is `deploying`, `draining` or `failed`. On a `paused` or `suspended` deployment the change is recorded and re-asserted when you resume, rather than waking workers to apply it.
+
+Workers still running the previous configuration report `stale: true` until they are replaced.
+
+## Deleting
+
+Deleting is a **drain**, not an instant teardown, and it happens in a fixed order:
+
+<Steps>
+  <Step title="New jobs are refused">
+    Status becomes `draining`. Submissions get a `400`.
+  </Step>
+  <Step title="Workers wind down">
+    The platform waits until it has **observed** worker count at zero. It does not assume the stop landed. Jobs still in flight keep their current status through this window.
+  </Step>
+  <Step title="In-flight jobs are cancelled">
+    Once workers are confirmed at zero, anything still non-terminal is force-cancelled — each lands on `CANCELLED` with a `completed` webhook. See [Cancel and terminal states](/guides/serverless-gpus/cancellation#drain-cancellation).
+  </Step>
+  <Step title="The endpoint is removed">
+    `{owner}/{alias}` stops resolving and the alias becomes available again.
+  </Step>
+  <Step title="Final settlement">
+    The deployment is kept as a tombstone until its last usage bucket settles, and the credit hold is released only then. Charges can therefore land after the deployment is gone — see [Billing](/guides/serverless-gpus/billing#hourly-settlement).
+  </Step>
+</Steps>
+
+A deployment that never reached the compute layer (a failed create) is deleted immediately — there is nothing to drain.
+
+Deleting is never gated on beta access. Neither is pausing: whatever the state of the beta flag, you can always stop and remove what you have running.
+
+## The workers panel
+
+`GET /deployments/{id}/workers` — the **Workers** tab — is a live view of what is actually running:
+
+```json
+{
+  "summary": { "running": 1, "idle": 0, "initializing": 1, "throttled": 0, "unhealthy": 0, "total": 2 },
+  "workers": [
+    {
+      "id": "wkr_9f3c1ab240",
+      "status": "running",
+      "gpu": "A6000",
+      "region": "us",
+      "uptimeSeconds": 412,
+      "startedAt": "2026-09-03T14:52:11.000Z",
+      "stale": false
+    }
+  ],
+  "jobs": { "inQueue": 0, "inProgress": 1 },
+  "observedAt": "2026-09-03T14:59:03.000Z"
+}
+```
+
+| Worker state | Meaning |
+| --- | --- |
+| `initializing` | Staging the container image. Not billed. |
+| `running` | Alive — booting your workload, serving jobs, and the idle window that follows. This is the state that bills. |
+| `idle` | Scaled down. Not billed. |
+| `throttled` | No capacity available for this SKU right now. |
+| `unhealthy` | The worker is failing its health checks. |
+
+Worker ids (`wkr_…`) are stable pseudonyms and regions are coarse (`us`, `eu`) — enough to correlate log lines and spot an imbalance, deliberately not enough to identify specific infrastructure. The reading is cached for a few seconds; `observedAt` tells you how fresh it is.
+
+## Live logs
+
+`GET /deployments/{id}/logs` — the **Logs** tab — is a Server-Sent Events tail of your workload's output across all its workers:
+
+```text
+event: log
+id: 1841
+data: {"seq":1841,"ts":"2026-09-03T14:52:44.108Z","worker":"wkr_9f3c1ab240","line":"Loading weights…"}
+```
+
+- Every line carries a monotonic `seq`. Reconnect with `Last-Event-ID: <seq>` (or `?after=<seq>`) to resume where you left off.
+- If the buffer has moved past your position, you get an explicit `event: gap` instead of silently missing lines.
+- The stream opens with a `: connected` comment, and a `: heartbeat` comment keeps it alive.
+- Up to **5 concurrent log streams per account**; a sixth gets a `429`. Persistently slow readers are disconnected rather than buffered indefinitely.
+
+<Note>
+  **Logs are live-tail only in this release.** There is no history: what scrolled past before you connected is gone, and there is no search over past output. If you need durable logs, ship them from your workload to your own destination.
+</Note>
+
+Lines are filtered for platform-internal identifiers before they reach you. Your own stack's output — framework banners, your prints — is not touched.
+
+## The event feed
+
+`GET /deployments/{id}/events` is the audit trail: creation, scale changes, pause, resume, hibernation, suspension, drain and delete, each with an `actor` (`owner`, `system`, or `operator`) and a timestamp. When a deployment stopped and you do not know why, read this first — it is where a `system`-actor suspension shows up with its reason.

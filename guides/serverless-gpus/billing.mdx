@@ -1,0 +1,141 @@
+---
+title: "Billing"
+description: "Deployments bill worker-seconds against your prepaid balance: a credit hold reserved up front, hourly settlement after the fact."
+icon: "credit-card"
+---
+
+Deployments bill **worker time**, not requests. A job costs nothing by itself; what you pay for is the seconds a GPU worker spent alive on your behalf, at the rate of the GPU SKU you chose.
+
+Three mechanisms make that work on a prepaid balance:
+
+1. A **credit hold** reserved while the deployment can start workers.
+2. A **provisional meter** that shows you what you are burning, in near real time.
+3. **Hourly settlement**, which is what actually moves money.
+
+## The rate
+
+Every deployment freezes its GPU's sell rate at creation, in `gpu.pricePerSecond`. A later change to the catalog price never reprices a deployment that already exists — the frozen rate is what your usage bills at until you delete it.
+
+```json
+"gpu": {
+  "key": "gpu-a6000",
+  "name": "A6000",
+  "vram": 48,
+  "bundleCount": 1,
+  "pricePerSecond": 0.0006
+}
+```
+
+The rate is per SKU-second and covers everything the SKU bundles. A `2x` SKU reports `bundleCount: 2` and its rate already prices both GPUs — there is no second multiplier anywhere in deployment billing.
+
+Per-job charges are `$0`: a deployment request's `totalPrice` is zero and its `billingStatus` settles at `charged` without moving money. All the cost is in worker-seconds.
+
+## The credit hold
+
+Starting workers costs money continuously, and a poll interval is long enough to overspend a prepaid balance. So the platform reserves a hold before anything can run:
+
+```text
+hold = pricePerSecond × workersMax × hold horizon
+```
+
+The hold horizon is **30 minutes** by default. A deployment with `workersMax: 1` on a SKU priced at `0.0006` per second therefore reserves `0.0006 × 1 × 1800`, or **1.08 USD**.
+
+The hold is not a charge. It is money you cannot spend elsewhere while the deployment can run:
+
+- **Available balance = balance − active holds.** Every admission gate on the platform reads that same figure — catalog model requests, wrapper requests, chat completions and deployment jobs all draw from one allocator, so a hold cannot be double-spent by another surface.
+- It is reserved at **create** and re-reserved on **resume** (both refuse with `402` when your balance cannot cover it).
+- It is released when the deployment is **paused or suspended** — but only once the platform has *observed* worker count at zero, because workers can keep billing until the stop lands.
+- On **delete**, the hold is held through the drain and released after the final usage bucket settles.
+
+<Note>
+  Scaling up re-sizes the hold. Raising `workersMax` on an existing deployment requires enough available balance for the larger reserve.
+</Note>
+
+## The provisional meter
+
+The platform samples worker state continuously and accrues **provisional worker-seconds** into the current UTC-hour bucket. This is what the dashboard's Usage view and the deployment's `meteredSeconds` show.
+
+It is display and protection only. Workers can start and stop entirely between samples, so the meter is an estimate — accurate enough to protect your balance and to show you a live burn, not accurate enough to bill from.
+
+## Hourly settlement
+
+Charges come from **closed hourly buckets**, settled after the fact:
+
+| Field on a usage bucket | Meaning |
+| --- | --- |
+| `bucketStart` | The UTC hour the usage falls in. |
+| `meteredSeconds` | Provisional worker-seconds observed in that hour. |
+| `chargedAmount` | The settled charge, as an exact decimal string. `null` while provisional. |
+| `settlementStatus` | `provisional`, `settled`, `adjusted`, or `void`. |
+
+An hour cannot settle the moment it closes — the underlying usage records take time to finalize. Expect settlement roughly **an hour or more after the hour ends**, occasionally longer. Until then the bucket sits `provisional` with a `null` charge, and your balance has not moved for it.
+
+<Warning>
+  **Your balance lags your usage.** A deployment you ran for an hour and then deleted will keep producing charges for a while afterwards as its final buckets settle. Do not read "balance unchanged" as "not billed yet, so I can spend it" — that is what the hold is protecting you from.
+</Warning>
+
+Each settled bucket writes exactly one idempotent charge, so a retried settlement never double-charges. A bucket the platform materialized but that carried no real usage settles as `void`. `adjusted` is reserved for later corrections and is not written today — settlement is exactly-once, and no bucket is re-priced after the fact.
+
+Read the buckets for one deployment (owner-scoped; see the [stability note](/guides/serverless-gpus/lifecycle)):
+
+```bash
+curl https://api.modelrunner.run/deployments/$DEPLOYMENT_ID/usage \
+  -H "Authorization: Key $MODELRUNNER_KEY"
+```
+
+```json
+{
+  "buckets": [
+    {
+      "bucketStart": "2026-09-03T14:00:00.000Z",
+      "meteredSeconds": 612.4,
+      "chargedAmount": "0.367440",
+      "settlementStatus": "settled"
+    },
+    {
+      "bucketStart": "2026-09-03T15:00:00.000Z",
+      "meteredSeconds": 180.0,
+      "chargedAmount": null,
+      "settlementStatus": "provisional"
+    }
+  ],
+  "totalCharged": "0.367440",
+  "provisionalSeconds": 180
+}
+```
+
+## Account-wide spend
+
+`GET /billing/usage-summary` reports serverless spend as its own line, already included in `totalSpent`:
+
+```json
+{
+  "period": "7d",
+  "totalSpent": "12.480000",
+  "serverlessSpent": "4.910000",
+  "requestCount": 214,
+  "successRate": 98.6
+}
+```
+
+`serverlessSpent` is the settled deployment usage in the window, and it is always present — `"0"` if you have never run a deployment. The difference between it and `totalSpent` is catalog inference.
+
+## When the balance runs out
+
+Two safety rules can stop a deployment without you asking:
+
+| Trigger | What happens | `suspendedReason` |
+| --- | --- | --- |
+| Your balance falls below the sum of your active holds | Deployments are suspended **newest first** until the remaining holds are covered again | `insufficient_balance` |
+| A deployment's settled spend this month reaches its `spendCapUsdMonthly` | That deployment alone is suspended | `spend_cap` |
+
+Suspension drives workers to zero; `status` becomes `suspended` while `desiredState` stays `active`, which is how you tell a safety stop from a pause you asked for.
+
+Neither resumes on its own. After topping up, resume the deployment yourself — resume re-runs the same admission checks, so it will refuse again if the balance still cannot cover the hold. A `spend_cap` suspension refuses to resume until you raise or remove the cap first.
+
+## What is not billed
+
+- **Image download on a cold start.** Staging the container image is not worker time.
+- **Cancelled jobs.** A cancelled request settles at zero charge — though the worker-seconds it already consumed are metered like any other.
+- **Failed jobs.** Same: no per-job charge, but the worker time is real.
+- **A deployment sitting at zero workers.** Scale-to-zero means idle costs nothing per second. The credit hold stays reserved until you pause or delete it.
