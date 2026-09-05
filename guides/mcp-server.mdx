@@ -14,19 +14,21 @@ Connection uses **OAuth 2.1** with Dynamic Client Registration ([RFC 7591](https
 
 <Tabs>
   <Tab title="Claude Desktop">
-    Add ModelRunner to your `claude_desktop_config.json`:
+    Claude Desktop and claude.ai take a remote MCP server as a **custom connector**, not as a `claude_desktop_config.json` entry (that file launches local stdio servers only).
 
-    ```json
-    {
-      "mcpServers": {
-        "modelrunner": {
-          "url": "https://mcp.modelrunner.run/mcp"
-        }
-      }
-    }
-    ```
+    <Steps>
+      <Step title="Open Connectors">
+        Open **Settings → Connectors**.
+      </Step>
+      <Step title="Add a custom connector">
+        Click **Add**, then **Add custom connector**.
+      </Step>
+      <Step title="Paste the server URL">
+        Enter `https://mcp.modelrunner.run/mcp` and confirm.
+      </Step>
+    </Steps>
 
-    Restart Claude Desktop. On the first tool call, you'll be redirected to ModelRunner to authorize the client.
+    Sign in to ModelRunner when the authorization window opens. Custom connectors are subject to your Claude plan's own limits. If your client only speaks stdio, use the `mcp-remote` bridge below instead.
   </Tab>
   <Tab title="Claude Code">
     ```bash
@@ -217,6 +219,7 @@ Unauthorized requests to `/mcp` get a `401` with a `WWW-Authenticate` header poi
 
 ## Troubleshooting
 
+- **Server never appears in Claude Desktop** — a `url` entry in `claude_desktop_config.json` is ignored without an error; that file only launches local stdio servers. Add the server as a custom connector (see the Claude Desktop tab above) or bridge it with `mcp-remote`.
 - **`401 Unauthorized` on every tool call** — Your token expired or was revoked. Disconnect and re-authorize in your client.
 - **Tool list missing or empty** — The client must send an `InitializeRequest` as the first POST to `/mcp` with no `Mcp-Session-Id` header. Most clients handle this automatically; check that you're using a current MCP SDK build.
 - **`upload_file` returns "exceeds the 200 MiB upload cap"** — Use the [direct multipart upload flow](/guides/file-uploads#multipart-upload-large-files) instead and pass the resulting `fileUrl` to `run_model`.
