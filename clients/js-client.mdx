@@ -262,3 +262,6 @@ const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
 <Warning>
   Set `MODELRUNNER_KEY` in your server environment. The proxy reads this value to authenticate requests. Never expose it in the browser.
 </Warning>
+## Saved character references
+
+`@modelrunner/client` 1.4.0+ provides the `references` option to queue submission and subscription. It checks model capability and submits the authored input with version-bound selections once. See [Saved characters](/guides/characters) for the wire contract, preview flow, rollout requirements, and retry guidance.

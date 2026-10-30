@@ -1,0 +1,143 @@
+---
+title: "Saved characters"
+description: "Reuse saved character images with explicit @mentions in supported model prompts."
+icon: "users"
+---
+
+<Note>
+  Character references are in staged rollout. A model supports submission only when its catalog response advertises `characterReferences.contractVersion: 1` and `enabled: true`. Preview availability is separate. These options require `@modelrunner/client` 1.4.0+ or `modelrunner-ai` 0.7.0+. Do not send bindings through an older SDK's model input. If the library response reports `writesEnabled: false`, creating and editing characters is not available yet.
+</Note>
+
+A saved character contains a name, immutable lowercase handle, description, and one to twenty ordered images you uploaded to ModelRunner. It is a reusable reference bundle, so creating one does not train a model or charge for inference. Character image consistency depends on the selected model and your reference images.
+
+## In the playground
+
+1. Open **Assets → Characters → New character**. Upload images or choose images already in Assets. Set a description and handle such as `mara`.
+2. Put the preferred default image first. The cover controls the library card; the first ordered image is used by default in a prompt.
+3. On a supported model, type `@` in the prompt and select a saved character, or choose **Add character**. Choose additional reference images if the model allows them.
+4. Choose **Preview character input** to inspect the expanded prompt, image order and remaining capacity. Preview does not run inference or charge your balance.
+5. Choose **Run**. The server checks ownership, saved version, image availability and the model's limits again before starting inference.
+
+A plain `@mara` without an explicit selection remains ordinary text. Emails and URL fragments do not activate characters. Repeated mentions use the same selected images. If you edit the prompt, image selection or model, preview it again. A stale saved version requires refreshing the selection; the server never silently substitutes the latest version.
+
+Models have explicit limits. Manual reference images retain their positions, and character images append in prompt-mention order. Duplicate URLs reuse an existing position. Explicit selections are rejected when they exceed capacity. Description-only models use the saved description and do not send character images.
+
+## API library
+
+Use the same account API key as inference. These routes belong to `https://modelrunner.run`:
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/characters?q=&page=1&limit=24` | Search your library; response includes `writesEnabled`. |
+| POST | `/characters` | Create from owned uploaded File IDs. |
+| GET | `/characters/{id}` | Read a saved character and its version/images. |
+| PATCH | `/characters/{id}` | Edit using the current `version`. Handles stay immutable. |
+| DELETE | `/characters/{id}` | Remove the saved character; image files and past requests remain. |
+| GET | `/characters/{id}/requests?page=1` | Paginated owner-only run history. |
+| POST | `/characters/resolve` | Validate and preview a selection without starting inference. |
+
+Create example (replace the UUIDs with IDs returned by your own uploads):
+
+```json
+{
+  "name": "Mara",
+  "handle": "mara",
+  "description": "A traveler wearing a red coat",
+  "fileIds": ["d72b6820-39b4-4c0a-842d-8d5b0ea14d2a"],
+  "coverFileId": "d72b6820-39b4-4c0a-842d-8d5b0ea14d2a"
+}
+```
+
+Files must be ready, owned, uploaded raster images, at most 20 MiB and 40 megapixels each. Handles use `[a-z][a-z0-9_-]{0,63}`; positional names such as `image1` are reserved. Updates include the current `version`, for example `{ "version": 3, "description": "A traveler in a blue coat" }`. A concurrent edit returns HTTP 409. Missing and other accounts' records return the same HTTP 404.
+
+## Preview and submit
+
+Read `GET /models/{ownerName}/{alias}` first and check the matching capability. Send this body to `POST /characters/resolve`:
+
+```json
+{
+  "endpoint": "owner/character-model",
+  "input": { "prompt": "@mara walks through a rainy street" },
+  "modelrunner_references": [
+    {
+      "type": "character",
+      "id": "e43bc27b-8c01-4e83-b477-133f98cdcd6f",
+      "mention": "mara",
+      "version": 3,
+      "file_ids": ["d72b6820-39b4-4c0a-842d-8d5b0ea14d2a"]
+    }
+  ]
+}
+```
+
+The response includes `effectiveInput`, selected snapshots, `imageCount`, `addedImageCount`, `maxImages` and `availableImageSlots`. The last two are null for description-only models. Omitting `file_ids` selects the first saved image. An explicit list preserves your chosen order.
+
+For queue submission, put the original authored model fields at the top level alongside the reserved binding key:
+
+```json
+{
+  "prompt": "@mara walks through a rainy street",
+  "modelrunner_references": [
+    {
+      "type": "character",
+      "id": "e43bc27b-8c01-4e83-b477-133f98cdcd6f",
+      "mention": "mara",
+      "version": 3
+    }
+  ]
+}
+```
+
+Send this once to `https://queue.modelrunner.run/owner/character-model`. Keep authored input separate from preview output: sending expanded input together with its original bindings would expand twice or fail mention validation. The server recalculates the preview and prices the actual expanded input.
+
+<CodeGroup>
+
+```typescript JavaScript (SDK 1.4.0+)
+import { modelrunner } from "@modelrunner/client";
+
+const result = await modelrunner.subscribe("owner/character-model", {
+  input: { prompt: "@mara walks through a rainy street" },
+  references: [{
+    type: "character",
+    id: "e43bc27b-8c01-4e83-b477-133f98cdcd6f",
+    mention: "mara",
+    version: 3,
+  }],
+});
+```
+
+```python Python (SDK 0.7.0+)
+import modelrunner_ai
+
+handle = modelrunner_ai.submit(
+    "owner/character-model",
+    arguments={"prompt": "@mara walks through a rainy street"},
+    character_references=[{
+        "type": "character",
+        "id": "e43bc27b-8c01-4e83-b477-133f98cdcd6f",
+        "mention": "mara",
+        "version": 3,
+    }],
+)
+result = handle.get()
+```
+
+</CodeGroup>
+
+These SDK options check server capability before uploads, serialize bindings separately from model input, and disable automatic retries and redirects on the submission POST. Read-only polling can still retry. Async Python uses the same `character_references` option on `submit_async` and `subscribe_async`.
+
+<Warning>
+  After a connection failure, HTTP 5xx, or `character_reference_outcome_unknown`, check request history before submitting again. The job may already have been accepted. Keep any returned request ID for reconciliation. Never retry by dropping the character bindings.
+</Warning>
+
+## History, publication and retention
+
+Accepted runs freeze the selected versions, description and image URLs. Editing or deleting a saved character cannot change a past run or its fallback. **Runs** on a character card shows requests that selected it. Replaying a historical run uses its frozen expanded input as ordinary model input, without looking up today's saved character.
+
+Library records and their handles are private to the account. Existing CDN image URLs retain their usual public URL access semantics. Publishing a run exposes its expanded prompt, included description text and selected image URLs. Review those details before publishing.
+
+Saved character images are protected from automatic expiry while attached; files being used by an accepted run are protected by that run's normal lifecycle. Removing an image or deleting the character restores its existing expiry policy, rather than restarting its retention clock. Explicit deletion of an attached or in-use image is refused until the dependency is removed.
+
+Deleting request payloads removes authored input, frozen character details and expanded input. A character's history can retain the request's opaque ID/status and a payload-removed marker. Deleting a character removes its organizational history links and keeps past requests under their normal retention policy.
+
+Wrappers, deployments, chat completions, Messages and structured character/element adapters do not accept these bindings in this release. Use a direct model that explicitly advertises support.

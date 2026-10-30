@@ -51,6 +51,7 @@
             "pages": [
               "guides/language-models",
               "guides/file-uploads",
+              "guides/characters",
               "guides/webhooks",
               "guides/data-retention",
               "guides/mcp-server"
