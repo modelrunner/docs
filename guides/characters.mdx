@@ -5,7 +5,7 @@ icon: "users"
 ---
 
 <Note>
-  Character references are in staged rollout. A model supports submission only when its catalog response advertises `characterReferences.contractVersion: 1` and `enabled: true`. Preview availability is separate. These options require `@modelrunner/client` 1.4.0+ or `modelrunner-ai` 0.7.0+. Do not send bindings through an older SDK's model input. If the library response reports `writesEnabled: false`, creating and editing characters is not available yet.
+  Character references are in staged rollout. A model supports submission only when its catalog response advertises `characterReferences.contractVersion: 1` and `enabled: true`. Preview availability is separate. These options require `@modelrunner/client` 1.4.0+ or `modelrunner-ai` 0.7.1+. Do not send bindings through an older SDK's model input. If the library response reports `writesEnabled: false`, creating and editing characters is not available yet.
 </Note>
 
 A saved character contains a name, immutable lowercase handle, description, and one to twenty ordered images you uploaded to ModelRunner. It is a reusable reference bundle, so creating one does not train a model or charge for inference. Character image consistency depends on the selected model and your reference images.
@@ -106,7 +106,7 @@ const result = await modelrunner.subscribe("owner/character-model", {
 });
 ```
 
-```python Python (SDK 0.7.0+)
+```python Python (SDK 0.7.1+)
 import modelrunner_ai
 
 handle = modelrunner_ai.submit(
