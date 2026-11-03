@@ -97,6 +97,50 @@ Names are bounded to 128 characters. Handles use `[a-z][a-z0-9_-]{0,63}`, are un
 
 Create is one POST with no automatic retry. If its outcome is uncertain, inspect owner search/read results and compare the attempted content before another create. The API does not promise durable create idempotency.
 
+### Typed library clients
+
+Use the JS `entities` client or the Python library helpers with your own ready File IDs.
+The following examples assume the configured clients from the submission examples below.
+
+```javascript
+const { items, counts } = await modelrunner.entities.list({ type: "prop" });
+const { handle, available } = await modelrunner.entities.checkHandle({ name: "Brass lantern" });
+const entity = await modelrunner.entities.create({
+  type: "prop", name: "Brass lantern", handle,
+  fileIds: [ownedFileId], description: "Brass body and a red leather strap",
+});
+const updated = await modelrunner.entities.update(entity.id, {
+  version: entity.version, description: "Brass body and a blue leather strap",
+});
+// await modelrunner.entities.get(entity.id);
+// await modelrunner.entities.delete(entity.id);
+```
+
+```python
+items = modelrunner_ai.list_entities(type="prop")
+availability = modelrunner_ai.check_entity_handle(name="Brass lantern")
+entity = modelrunner_ai.create_entity({
+    "type": "prop", "name": "Brass lantern", "handle": availability["handle"],
+    "fileIds": [owned_file_id], "description": "Brass body and a red leather strap",
+})
+updated = modelrunner_ai.update_entity(entity["id"], {
+    "version": entity["version"], "description": "Brass body and a blue leather strap",
+})
+# modelrunner_ai.get_entity(entity["id"])
+# modelrunner_ai.delete_entity(entity["id"])
+```
+
+Library helpers use owned ready File IDs. The API remains responsible for readiness,
+ownership, kind admission and version checks. Writes are single attempts and refuse
+redirects; after an uncertain create, reconcile owner reads before creating again.
+Deleting an Entity keeps its Files and historical Requests. Missing update fields
+are preserved; a conflicting version returns 409. Check availability before create,
+while still handling a concurrent conflict. Availability does not reserve a handle.
+
+Python also exposes these methods on `SyncClient` and `AsyncClient`, with module-level
+`_async` variants. Read admission through JS `entities.capabilities()` or Python
+`get_entity_capabilities()`. These helpers require the new SDK versions above.
+
 ## Preview and queue submission
 
 The explicit binding array stays the same reserved wire key. Send this body to `POST /entities/preview`:
