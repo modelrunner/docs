@@ -10,12 +10,14 @@ icon: "users"
 
 A saved character contains a name, immutable lowercase handle, description, and one to twenty ordered images you uploaded to ModelRunner. It is a reusable reference bundle, so creating one does not train a model or charge for inference. Character image consistency depends on the selected model and your reference images.
 
+For props, environments, styles and scenes, see [Saved entities](/guides/entities). Character-only calls keep their existing SDK options and capability.
+
 ## In the playground
 
-1. Open **Assets → Characters → New character**. Upload images or choose images already in Assets. Set a description and handle such as `mara`.
+1. Open **Assets → Entities → Characters → Add**. Upload images or choose images already in Assets. Set a description and handle such as `mara`.
 2. Put the preferred default image first. The cover controls the library card; the first ordered image is used by default in a prompt.
-3. On a supported model, type `@` in the prompt and select a saved character, or choose **Add character**. Choose additional reference images if the model allows them.
-4. Choose **Preview character input** to inspect the expanded prompt, image order and remaining capacity. Preview does not run inference or charge your balance.
+3. On a supported model, type `@` in the prompt and select a saved character, or choose **Add reference**. Choose additional reference images if the model allows them.
+4. Choose **Preview reference input** to inspect the expanded prompt, image order and remaining capacity. Preview does not run inference or charge your balance.
 5. Choose **Run**. The server checks ownership, saved version, image availability and the model's limits again before starting inference.
 
 A plain `@mara` without an explicit selection remains ordinary text. Emails and URL fragments do not activate characters. Repeated mentions use the same selected images. If you edit the prompt, image selection or model, preview it again. A stale saved version requires refreshing the selection; the server never silently substitutes the latest version.

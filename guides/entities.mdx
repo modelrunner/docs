@@ -1,0 +1,167 @@
+---
+title: "Saved entities"
+description: "Reuse characters, props, environments, styles and scenes through explicit reference selections."
+icon: "shapes"
+---
+
+<Note>
+  Entity delivery is staged by model and account. Saving a kind does not mean every model can use it. Check the model's `entityReferences` and your authenticated `/entities/capabilities` before uploading inputs. Generic SDK selections require `@modelrunner/client` 1.5.0+ or `modelrunner-ai` 0.8.0+. Existing character-only integrations keep working with their character-v1 capability and earlier supported SDK versions.
+</Note>
+
+An Entity is a saved reference bundle of one to twenty owned images. Its kind is **character**, **prop**, **environment**, **style** or **scene**. Saving it does not train a model or run generation. Models use the selected images, or the visual description in description-only mode, according to their advertised capabilities.
+
+## In the playground
+
+1. Open **Assets → Entities**. Choose All or a kind, then **Add**.
+2. Upload/drop images, browse your owned Assets, or import a public HTTPS URL. Successful imports become owned Files. Set a name and identifier such as `lantern`; add a visual description. Characters require a description; other kinds may leave it empty.
+3. Reorder defining images and choose a member image as the cover. The **first ordered image** is the default prompt reference; the cover controls the library card.
+4. On a supported model, choose **Add reference** or type `@` and select an Entity. The picker shows supported kinds admitted for your account. Choose the images for this run; selections show their saved kind and version.
+5. Choose **Preview reference input** to inspect the final prompt, ordered images and remaining capacity. Preview does not submit a job or charge. **Run** checks the selection again and submits once.
+
+Only explicitly selected mentions resolve. A plain `@lantern`, an email or a URL remains ordinary text. Repeated mentions reuse the selected references. Manual images retain their order and duplicates; selected images append in first-mention order and reuse an existing position when their URL is already present. Oversized selections are refused rather than truncated.
+
+Handles and kinds are immutable in this release. Updating metadata or defining images increments the saved version; a stale selection must be refreshed. Changes to the library do not rewrite an accepted run. History replays its frozen effective input without binding the current Entity again.
+
+Description-only delivery requires a nonempty visual description and does not send the saved reference images. A non-character Entity without a description can still use a supported image-list model. Library editing may be paused independently of running already saved references.
+
+## Model and account discovery
+
+Use the account's API key with `Authorization: Key <key>` on `https://modelrunner.run`.
+
+`GET /models/{owner}/{alias}` advertises a safe capability:
+
+```json
+{
+  "entityReferences": {
+    "contractVersion": 1,
+    "enabled": true,
+    "previewEnabled": true,
+    "mode": "image-list",
+    "promptField": "prompt",
+    "supportedKinds": ["character", "prop"],
+    "maxEntities": 4,
+    "imageField": "images",
+    "maxImages": 8,
+    "maxImagesPerEntity": 2
+  }
+}
+```
+
+This is an illustrative response; read your actual model's metadata. Preview availability is separate from enabled submission. Missing generic metadata, an unknown contract version, or a selected kind absent from `supportedKinds` means generic delivery is unavailable. Model support never follows from an image field's existence alone.
+
+`GET /entities/capabilities` requires the concrete account identity:
+
+```json
+{
+  "contractVersion": 1,
+  "writesEnabled": true,
+  "submissionsEnabled": true,
+  "newKindsEnabled": true
+}
+```
+
+Creation/editing requires `writesEnabled`; non-character creation/editing also requires `newKindsEnabled`. Non-character submission requires both submission admission and a matching enabled model capability. Reads/deletion remain available for cleanup when new-kind admission is disabled. SDKs check model support and account eligibility before transforming/uploading inputs. Character-only calls retain the existing `characterReferences.contractVersion: 1` handshake and do not require new-kind admission.
+
+## Entity library API
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/entities?q=&type=prop&page=1&limit=24` | Owner search/filter/pagination; five-kind counts follow owner/search scope while type filters items. |
+| POST | `/entities` | Create using owned ready File IDs. |
+| GET | `/entities/{id}` | Read metadata, version and ordered image references. |
+| PATCH | `/entities/{id}` | Update using the expected `version`. |
+| DELETE | `/entities/{id}` | Remove the library entry; retain its Files and historical Requests. |
+| POST | `/entities/check-handle` | Check an identifier, or suggest/check one from a name. |
+| POST | `/entities/import-image` | Import a public HTTPS raster image into an owned File; body contains `type` and `url`. |
+| POST | `/entities/validate-images` | Check stored reference readiness; body contains `type` and `fileIds`. |
+| GET | `/entities/{id}/usage?page=1` | Paginated owner-only history of automatic reference use. |
+| GET | `/entities/capabilities` | Read account rollout/write/submission admission. |
+| POST | `/entities/preview` | Resolve a bound direct-model input without inference. |
+
+Example create body, replacing the File UUID with your own upload/import result:
+
+```json
+{
+  "type": "prop",
+  "name": "Brass lantern",
+  "handle": "lantern",
+  "description": "Brass lantern with dented glass and a worn leather strap",
+  "fileIds": ["22222222-2222-4222-8222-222222222222"],
+  "coverFileId": "22222222-2222-4222-8222-222222222222"
+}
+```
+
+Names are bounded to 128 characters. Handles use `[a-z][a-z0-9_-]{0,63}`, are unique across your kinds, and exclude positional identifiers such as `image1`. Images must be ready, owned static raster Files, at most 20 MiB and 40 megapixels each. Covers must be original member images. Another account's public image URL does not grant ownership of its File.
+
+`PATCH` includes the current version, for example `{ "version": 2, "description": null }` to clear a non-character description. A concurrent edit returns 409. Missing and foreign IDs both return 404.
+
+Create is one POST with no automatic retry. If its outcome is uncertain, inspect owner search/read results and compare the attempted content before another create. The API does not promise durable create idempotency.
+
+## Preview and queue submission
+
+The explicit binding array stays the same reserved wire key. Send this body to `POST /entities/preview`:
+
+```json
+{
+  "endpoint": "your-team/image-editor",
+  "input": { "prompt": "@lantern on a wooden table" },
+  "modelrunner_references": [{
+    "type": "prop",
+    "id": "11111111-1111-4111-8111-111111111111",
+    "mention": "lantern",
+    "version": 1,
+    "file_ids": ["22222222-2222-4222-8222-222222222222"]
+  }]
+}
+```
+
+Replace the endpoint and IDs with a model and Entity admitted for your account. The response includes `effectiveInput`, typed `entities`, mode/config version, image counts and remaining capacity. Omitting `file_ids` selects the first saved image; an explicit list preserves that selection order. Preview freezes nothing for a later job, so submission revalidates ownership, kind, version, membership and availability.
+
+To submit through HTTP, put ordinary model fields and the same `modelrunner_references` array together at the root of `POST https://queue.modelrunner.run/{owner}/{alias}`. The preview's outer `input` wrapper belongs only to the preview endpoint. Bindings never become provider/model input.
+
+### JavaScript
+
+```ts
+import { modelrunner } from "@modelrunner/client";
+
+const request = await modelrunner.queue.submit("your-team/image-editor", {
+  input: { prompt: "@lantern on a wooden table" },
+  references: [{
+    type: "prop",
+    id: "11111111-1111-4111-8111-111111111111",
+    mention: "lantern",
+    version: 1,
+    file_ids: ["22222222-2222-4222-8222-222222222222"],
+  }],
+});
+```
+
+`subscribe` accepts the same `references` option. `EntityReferenceBinding` and `EntityKind` are exported types; character-specific types remain available.
+
+### Python
+
+```python
+import modelrunner_ai
+
+request = modelrunner_ai.submit(
+    "your-team/image-editor",
+    arguments={"prompt": "@lantern on a wooden table"},
+    entity_references=[{
+        "type": "prop",
+        "id": "11111111-1111-4111-8111-111111111111",
+        "mention": "lantern",
+        "version": 1,
+        "file_ids": ["22222222-2222-4222-8222-222222222222"],
+    }],
+)
+```
+
+`submit_async`, sync/async `subscribe`, `SyncClient` and `AsyncClient` accept the same option. `character_references` remains character-only; pass one reference option per call. `EntityReferenceBinding` and `EntityKind` are exported.
+
+Both SDKs copy selections before asynchronous work, negotiate support before uploads and attempt the referenced POST once. They do not retry it after a timeout or redirect. Polling retains normal retries. After an uncertain submission, check history or contact support with its request ID; do not replay it automatically.
+
+## History, visibility and limits
+
+Owner responses retain authored input and a bounded `entityReferences` summary with `effectiveInput`; character history retains its compatible summary. Public examples use ordinary effective input without private library bindings. Publishing a referenced run exposes the expanded prompt/descriptions and selected image URLs; the private library does not hide those intentionally published contents.
+
+The [character API](/guides/characters) stays character-only. Chat/Messages, wrappers and GPU deployments do not accept bindings in this release. Assisted image/description generation, editable identifiers, independent covers, manual galleries and entity favorites are outside this release. Per-model reference semantics and visual consistency depend on that model; library kinds are not a promise of universal support.

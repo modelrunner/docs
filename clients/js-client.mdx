@@ -265,3 +265,8 @@ const result = await modelrunner.subscribe("bytedance/sdxl-lightning-4step", {
 ## Saved character references
 
 `@modelrunner/client` 1.4.0+ provides the `references` option to queue submission and subscription. It checks model capability and submits the authored input with version-bound selections once. See [Saved characters](/guides/characters) for the wire contract, preview flow, rollout requirements, and retry guidance.
+
+
+## Saved entities
+
+Version 1.5.0 adds explicit saved Entity selections for queue submit/subscribe. See the [entity guide](/guides/entities) for staged model/account capabilities and examples. Character-only integrations retain their existing option and v1 handshake. The SDK checks capability before input uploads and sends a referenced POST once; inspect history after an uncertain outcome.
