@@ -1,0 +1,123 @@
+---
+title: "Assets and private collections"
+description: "Organize owned media and saved entities in one private workspace."
+icon: "folder-open"
+---
+
+Assets has one library sidebar: **Home**, **All media**, **Collections**,
+**Favorites**, your five entity categories, and your personal collection tree.
+Home brings recent collections and media together with a collapsible Entities
+panel. Search, filters, pages, sorting and view settings stay in the page URL.
+Search matches owned filenames, retained prompts and entity metadata.
+
+Open a media item to preview it, read its original prompt when retained, follow
+its run, tag it or organize it. Filter by media type, source, model, date, tags
+and favorites. Choose date grouping or a small, medium or large grid. On narrow
+screens the library navigation and entity inspectors open as drawers.
+
+## Manual collections and folders
+
+Create a collection, add owned media, and nest collections beneath manual
+folders. Use **Edit** to rename or move one; breadcrumbs show its location.
+**Upload folder** recreates the selected directory structure. A partial upload
+can resume without re-creating completed folders or memberships.
+
+Removing a collection removes organization only: files survive, and its child
+collections move to its parent. Removing a file from a collection keeps the
+file. Explicit media deletion removes organizational links; first detach defining
+entity references and display covers in the entity editor.
+
+## Smart collections
+
+A smart collection stores rules and evaluates them when opened. Use nested
+**All** or **Any** groups with model endpoint, source, creation date, media type,
+tags, favorite state or entity association. Rules allow at most three group
+levels and twenty conditions. The preview shows the current match count.
+
+Smart results update automatically. They cannot be manually added or removed.
+If a referenced tag, model or entity becomes unavailable, the collection shows
+an invalid-rule state; it does not silently show a broader set of files.
+
+Manual membership, manual entity links and separate display covers protect their
+files from automatic expiry. Merely matching a smart collection does not.
+These are private owner-scoped collections, separate from public model catalog
+collections. [Entities](/guides/entities) keep defining reference images separate
+from their associated-media galleries.
+
+## API
+
+Use `Authorization: Key <key>` with `https://modelrunner.run`.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET / POST | `/asset-collections` | List/create private collections. |
+| GET / PATCH / DELETE | `/asset-collections/{id}` | Read/update/delete organization. |
+| PUT / DELETE | `/asset-collections/{id}/files` | Add/remove owned File IDs, idempotently. |
+| POST | `/asset-collections/preview` | Preview an All/Any rule tree without saving. |
+| PUT / DELETE | `/asset-collections/{id}/favorite` | Set/remove favorite. |
+| POST | `/asset-collections/{id}/tags` | Assign `{ "tagId": "..." }` or `{ "name": "..." }`. |
+| DELETE | `/asset-collections/{id}/tags/{tagId}` | Remove tag assignment. |
+| GET | `/files?collectionId=...` | Browse collection results with ordinary file filters. |
+
+Create with a stable UUID `operationId`. Repeating exactly the same create
+reconciles the original result; using that ID for different content returns
+409. Keep it until the outcome is known. Updates and deletes require the current
+`version`; stale edits return 409. Collection kind stays fixed. A smart collection
+requires `rules`; a manual collection has no rules. Membership writes accept
+one to one hundred `fileIds`. Foreign and missing resources both return 404.
+
+File browsing and facets also accept `entityId`, `modelEndpoint`, `createdAfter`
+and `createdBefore`. Dates are ISO timestamps in UTC; the lower bound is
+inclusive and the upper bound exclusive. Counts apply ownership and filters
+before pagination. Every library response is private and non-cacheable.
+
+## SDKs
+
+Organization methods require `@modelrunner/client` 1.6.0+ or `modelrunner-ai`
+0.9.0+. Writes are single attempts with redirects refused. Reads never start
+inference.
+
+```javascript
+const collection = await modelrunner.assetCollections.create({
+  operationId: crypto.randomUUID(), // Retain this value to reconcile this create.
+  kind: "manual", name: "Campaign references", parentId: null,
+});
+await modelrunner.assetCollections.addFiles(collection.id, [ownedFileId]);
+const files = await modelrunner.assetCollections.listFiles(collection.id);
+const edited = await modelrunner.assetCollections.update(collection.id, {
+  version: collection.version, name: "Campaign finals",
+});
+// await modelrunner.assetCollections.delete(edited.id, edited.version);
+```
+
+```python
+import uuid
+collection = modelrunner_ai.create_asset_collection({
+    "operationId": str(uuid.uuid4()),  # Retain for this create attempt.
+    "kind": "manual", "name": "Campaign references", "parentId": None,
+})
+modelrunner_ai.add_asset_collection_files(collection["id"], [owned_file_id])
+files = modelrunner_ai.list_asset_collection_files(collection["id"])
+edited = modelrunner_ai.update_asset_collection(collection["id"], {
+    "version": collection["version"], "name": "Campaign finals",
+})
+# modelrunner_ai.delete_asset_collection(edited["id"], edited["version"])
+```
+
+The Python methods also exist on `SyncClient` and `AsyncClient`; module-level
+asynchronous methods use the `_async` suffix.
+
+A smart collection example uses this rule tree as `rules` on create:
+
+```json
+{
+  "match": "all",
+  "rules": [
+    { "field": "mediaType", "value": "image" },
+    { "match": "any", "rules": [
+      { "field": "favorite", "value": true },
+      { "field": "source", "value": "output" }
+    ] }
+  ]
+}
+```
