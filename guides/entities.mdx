@@ -12,17 +12,17 @@ An Entity is a saved reference bundle of one to twenty owned images. Its kind is
 
 ## In the playground
 
-1. Open **Assets → Entities**. Choose All or a kind, then **Add**.
+1. Open **Assets**. Choose Characters, Props, Environments, Styles or Scenes in the library sidebar, then **New**. The Home page also has an Entities panel with Add shortcuts.
 2. Upload/drop images, browse your owned Assets, or import a public HTTPS URL. Successful imports become owned Files. Set a name and identifier such as `lantern`; add a visual description. Characters require a description; other kinds may leave it empty.
-3. Reorder defining images and choose a member image as the cover. The **first ordered image** is the default prompt reference; the cover controls the library card.
-4. On a supported model, choose **Add reference** or type `@` and select an Entity. The picker shows supported kinds admitted for your account. Choose the images for this run; selections show their saved kind and version.
+3. Reorder defining images and choose a member image as the cover. Characters can also use a separate display cover. The **first ordered image** remains the default prompt reference; a separate cover is never implicitly sent to inference.
+4. On a supported model, type `@` and select an Entity beside the caret. Suggestions show its cover, name and kind. Bound handles are underlined. Inspect a handle to read its description, check delivery mode and choose reference images for this run. The picker shows supported kinds admitted for your account.
 5. Choose **Preview reference input** to inspect the final prompt, ordered images and remaining capacity. Preview does not submit a job or charge. **Run** checks the selection again and submits once.
 
 Only explicitly selected mentions resolve. A plain `@lantern`, an email or a URL remains ordinary text. Repeated mentions reuse the selected references. Manual images retain their order and duplicates; selected images append in first-mention order and reuse an existing position when their URL is already present. Oversized selections are refused rather than truncated.
 
-Handles and kinds are immutable in this release. Updating metadata or defining images increments the saved version; a stale selection must be refreshed. Changes to the library do not rewrite an accepted run. Opening your own referenced run restores the prompt you submitted, including its selected `@handles`, and checks the recorded references against your current library. Changed versions, removed images or unavailable entities require review before **Run** submits your visible edits. **Reset** restores the original prompt and selections. **Run previous input** is a separate action: it repeats the saved resolved input, ignores edits in the form, and works independently of changes to your library. It starts a new charged run; results may differ. Expand **Resolved model input** to inspect the saved values. Public examples continue to use expanded input without private bindings.
+Kinds and character identifiers are fixed. Other identifiers may be edited; the entity ID and historical snapshots stay the same. Updating descriptions, identifiers, covers or defining images increments the saved version; favorites, tags and organization links do not; a stale selection must be refreshed. Changes to the library do not rewrite an accepted run. Opening your own referenced run restores the prompt you submitted, including its selected `@handles`, and checks the recorded references against your current library. Changed versions, removed images or unavailable entities require review before **Run** submits your visible edits. **Reset** restores the original prompt and selections. **Run previous input** is a separate action: it repeats the saved resolved input, ignores edits in the form, and works independently of changes to your library. It starts a new charged run; results may differ. Expand **Resolved model input** to inspect the saved values. Public examples continue to use expanded input without private bindings.
 
-Description-only delivery requires a nonempty visual description and does not send the saved reference images. A non-character Entity without a description can still use a supported image-list model. Library editing may be paused independently of running already saved references.
+Description-only delivery requires a nonempty visual description and does not send the saved reference images. When a selected entity lacks a description, Run is blocked. Choose **Add description** to save one and explicitly refresh that selection without losing the prompt, choose a compatible image-reference model, or remove the mention. A non-character Entity without a description can still use a supported image-list model. Library editing may be paused independently of running already saved references.
 
 ## Model and account discovery
 
@@ -75,6 +75,10 @@ Creation/editing requires `writesEnabled`; non-character creation/editing also r
 | POST | `/entities/import-image` | Import a public HTTPS raster image into an owned File; body contains `type` and `url`. |
 | POST | `/entities/validate-images` | Check stored reference readiness; body contains `type` and `fileIds`. |
 | GET | `/entities/{id}/usage?page=1` | Paginated owner-only history of automatic reference use. |
+| GET | `/entities/{id}/assets` | Combined generated/manual media, deduplicated before pagination. |
+| PUT / DELETE | `/entities/{id}/assets` | Link/unlink owned media with `{ "fileIds": [...] }`; unlink preserves recorded generation usage. |
+| PUT / DELETE | `/entities/{id}/favorite` | Set/remove a favorite without changing reference version. |
+| POST / DELETE | `/entities/{id}/tags` / `/entities/{id}/tags/{tagId}` | Assign an owned tag by ID/name or remove its assignment. |
 | GET | `/entities/capabilities` | Read account rollout/write/submission admission. |
 | POST | `/entities/preview` | Resolve a bound direct-model input without inference. |
 
@@ -91,7 +95,7 @@ Example create body, replacing the File UUID with your own upload/import result:
 }
 ```
 
-Names are bounded to 128 characters. Handles use `[a-z][a-z0-9_-]{0,63}`, are unique across your kinds, and exclude positional identifiers such as `image1`. Images must be ready, owned static raster Files, at most 20 MiB and 40 megapixels each. Covers must be original member images. Another account's public image URL does not grant ownership of its File.
+Names are bounded to 128 characters. Handles use `[a-z][a-z0-9_-]{0,63}`, are unique across your kinds, and exclude positional identifiers such as `image1`. Images must be ready, owned static raster Files, at most 20 MiB and 40 megapixels each. The existing `coverFileId` must remain an original member image. Characters may additionally set nullable `displayCoverFileId`; responses include optional `displayCover`. Prefer the display cover for presentation, while keeping defining `files` and inference selections separate. Another account's public image URL does not grant ownership of its File.
 
 `PATCH` includes the current version, for example `{ "version": 2, "description": null }` to clear a non-character description. A concurrent edit returns 409. Missing and foreign IDs both return 404.
 
@@ -209,3 +213,37 @@ Both SDKs copy selections before asynchronous work, negotiate support before upl
 Owner responses retain authored input and a bounded `entityReferences` summary with `effectiveInput`; character history retains its compatible summary. Public examples use ordinary effective input without private library bindings. Publishing a referenced run exposes the expanded prompt/descriptions and selected image URLs; the private library does not hide those intentionally published contents.
 
 The [character API](/guides/characters) stays character-only. Chat/Messages, wrappers and GPU deployments do not accept bindings in this release. Assisted image/description generation, editable identifiers, independent covers, manual galleries and entity favorites are outside this release. Per-model reference semantics and visual consistency depend on that model; library kinds are not a promise of universal support.
+
+
+## Organize entities and their media
+
+Open an entity card to see its associated-media gallery with a reference and
+description inspector. **Generated with this entity** records automatic use;
+**Manually linked** records an organization link. An item can have both. Removing
+its manual link keeps the recorded usage. Linking media never changes defining
+references. **View all runs** includes pending or failed runs with no media.
+
+Entity tags and favorites use the same private tag registry as media. They do
+not change inference versions. [Private asset collections](/guides/assets)
+organize files independently of the public model catalog.
+
+The added organization SDK methods require `@modelrunner/client` 1.6.0+ or
+`modelrunner-ai` 0.9.0+. Existing 1.5.0/0.8.0 library and reference methods remain
+compatible.
+
+```javascript
+await modelrunner.entities.setFavorite(entity.id, true);
+await modelrunner.entities.assignTag(entity.id, { name: "Campaign" });
+await modelrunner.entities.linkAssets(entity.id, [ownedFileId]);
+const gallery = await modelrunner.entities.listAssets(entity.id, { order: "newest" });
+// gallery.items distinguish generated and manuallyLinked.
+await modelrunner.entities.unlinkAssets(entity.id, [ownedFileId]);
+```
+
+```python
+modelrunner_ai.favorite_entity(entity["id"])
+modelrunner_ai.assign_entity_tag(entity["id"], {"name": "Campaign"})
+modelrunner_ai.link_entity_assets(entity["id"], [owned_file_id])
+gallery = modelrunner_ai.list_entity_assets(entity["id"], {"order": "newest"})
+modelrunner_ai.unlink_entity_assets(entity["id"], [owned_file_id])
+```

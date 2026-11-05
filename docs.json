@@ -51,6 +51,7 @@
             "pages": [
               "guides/language-models",
               "guides/file-uploads",
+              "guides/assets",
               "guides/entities",
               "guides/characters",
               "guides/webhooks",
