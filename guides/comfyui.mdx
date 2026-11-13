@@ -1,0 +1,203 @@
+---
+title: "ComfyUI"
+description: "Run image, video, audio and 3D models from the public catalog inside ComfyUI with the ModelRunner node pack."
+icon: "diagram-project"
+---
+
+## Overview
+
+The [ModelRunner node pack](https://github.com/modelrunner/modelrunner-comfyui) adds nodes to ComfyUI that send their inputs to ModelRunner and return the result to your graph. ComfyUI and your graph run on your machine. The model runs remotely, and only the inputs you connect to a node are uploaded for it (see [Privacy](#privacy)). You need no local GPU and no model downloads. Every node uses one ModelRunner API key and draws from one balance.
+
+The pack is published on the [Comfy Registry](https://registry.comfy.org/nodes/modelrunner) under the node id `modelrunner`. For an overview, see the [ModelRunner ComfyUI page](https://modelrunner.ai/comfyui); for a worked example, see the [image-to-video walkthrough](https://modelrunner.ai/blog/comfyui-image-to-video-workflow).
+
+## Requirements
+
+- **ComfyUI 0.12.1 or newer.** Older versions still load every node, but video and 3D nodes then output only file paths and URLs, with no VIDEO or 3D output.
+- **A ModelRunner API key.** Create one at [modelrunner.ai/settings/api-keys](https://modelrunner.ai/settings/api-keys).
+- **A ModelRunner balance.** Runs are billed to it.
+
+No ComfyUI account and no ComfyUI credits are involved. The pack needs nothing beyond what ComfyUI already installs.
+
+## Install
+
+<Tabs>
+  <Tab title="ComfyUI Manager">
+    Open **ComfyUI Manager**, search for "ModelRunner" and install the pack. Restart ComfyUI.
+  </Tab>
+  <Tab title="Manual">
+    ```bash
+    cd ComfyUI/custom_nodes
+    git clone https://github.com/modelrunner/modelrunner-comfyui
+    ```
+
+    Restart ComfyUI.
+  </Tab>
+</Tabs>
+
+## Set your API key
+
+Give the pack your key in one of two ways:
+
+<Tabs>
+  <Tab title="Environment variable">
+    Set `MODELRUNNER_API_KEY` before you start ComfyUI:
+
+    ```bash
+    export MODELRUNNER_API_KEY=your-key
+    ```
+
+    This is checked first and is the sturdier choice.
+  </Tab>
+  <Tab title="Key file">
+    Put the key, and nothing else, in a file named `modelrunner_api_key.txt` in the pack's folder under `ComfyUI/custom_nodes/`.
+
+    The file is git-ignored, but an update through ComfyUI Manager can replace the pack's folder and remove it.
+  </Tab>
+</Tabs>
+
+<Warning>
+  The key is never a node widget. ComfyUI saves widget values into workflow files and into the metadata of every PNG it writes, so a key in a widget would leak each time you shared a workflow or an image.
+</Warning>
+
+See [API keys](/api-keys) for creating, naming and deleting keys.
+
+## The nodes
+
+### One node per model
+
+Each image, video, audio and 3D model in the public catalog has its own typed node with real widgets: dropdowns for options, number fields with the model's limits, and image, audio and video sockets for file inputs. Find them under **ModelRunner** in the node menu, grouped by kind, or search for a model's name.
+
+The node type name is `ModelRunner_<owner>__<alias>`, built from the model's `owner/alias` endpoint with dots turned into underscores. These nodes come from a catalog snapshot taken when the pack was released, so a model added later appears after you update the pack. Until then, run it with the run-any-model node below.
+
+Each node's tooltip shows the model's page and its average cost per run when the pack was released. Check current prices on the model page or the [pricing page](https://modelrunner.ai/pricing), and browse the catalog at [modelrunner.ai/models](https://modelrunner.ai/models).
+
+**Inputs.** Optional sockets can stay unconnected. A video socket takes a VIDEO from Load Video or another node. To pass a video URL instead, leave the socket empty and set the URL in `extra_json`.
+
+**`extra_json`.** Fields that have no widget, such as LoRA lists, go in the node's `extra_json` box as a JSON object. It is merged last, so it also overrides any widget:
+
+```json
+{"video_url": "https://example.com/clip.mp4"}
+```
+
+**Outputs.**
+
+| Node kind | Outputs |
+| --- | --- |
+| Image | An IMAGE batch, a MASK (from the alpha channel, so background-removal results work like Load Image's), the output URLs, and the request ID. |
+| Video, audio, 3D | The first result as a typed value (VIDEO for Save Video, AUDIO for Save Audio, a 3D file for Save 3D Model or Preview 3D), every downloaded file path, every URL, and the request ID. |
+
+Outputs that hold several values put one entry per line. Video, audio and 3D nodes run even when nothing is connected after them.
+
+### ModelRunner Run (any model)
+
+Runs any model by its `owner/alias` endpoint, as in a modelrunner.ai model URL, with a JSON input. Use it for models added after your installed release, or for any model you prefer to drive with raw JSON.
+
+Language models take an OpenAI-style messages body and return the reply as JSON on the `output_json` output:
+
+```json
+{"messages": [{"role": "user", "content": "Write a one-line caption for a sunset photo."}]}
+```
+
+See [Language models](/guides/language-models) for the request shape.
+
+### ModelRunner Upload Image and ModelRunner Download Image
+
+- **ModelRunner Upload Image** uploads each image in an IMAGE batch as a lossless PNG and returns the URLs, one per line. Use it to feed any URL input, including the run-any-model node.
+- **ModelRunner Download Image** fetches public `https` image URLs into an IMAGE batch and a MASK.
+
+## Example workflows
+
+Four example workflows ship with the pack. Open them from ComfyUI's template browser, under the pack's name.
+
+<Tabs>
+  <Tab title="Text to image">
+    <Frame>
+      <img src="https://modelrunner.ai/img/comfyui/text-to-image.webp" alt="A ModelRunner text-to-image node with a prompt and widgets for image size, steps, guidance, seed set to fixed and force_rerun off, its images output connected to Save Image" />
+    </Frame>
+  </Tab>
+  <Tab title="Image mask">
+    <Frame>
+      <img src="https://modelrunner.ai/img/comfyui/image-mask.webp" alt="Load Image feeds a ModelRunner image-mask node; its images output goes to Save Image and its urls output to Preview as Text" />
+    </Frame>
+  </Tab>
+  <Tab title="Image to video">
+    <Frame>
+      <img src="https://modelrunner.ai/img/comfyui/image-to-video.webp" alt="Load Image feeds a ModelRunner image-to-video node with a prompt and frame, fps and seed widgets; its video output goes to Save Video and its file_paths output to Preview as Text" />
+    </Frame>
+  </Tab>
+  <Tab title="Language model">
+    <Frame>
+      <img src="https://modelrunner.ai/img/comfyui/run-any-model-llm.webp" alt="ModelRunner Run (any model) node with a language model endpoint and a messages body; its output_json output goes to Preview as Text" />
+    </Frame>
+  </Tab>
+</Tabs>
+
+## What happens on a run
+
+<Steps>
+  <Step title="Inputs are uploaded">
+    Images, audio and video connected to the node are uploaded so the model can fetch them.
+  </Step>
+  <Step title="The request is submitted">
+    The console prints the request ID and the model's recent average cost per run.
+  </Step>
+  <Step title="The node waits">
+    A progress bar shows while the run is queued and working.
+  </Step>
+  <Step title="Results return to the graph">
+    Image results load straight into an IMAGE batch. Video, audio and 3D results are downloaded into `output/modelrunner/`. The node's outputs carry the media, file paths, URLs and request ID, as listed under [One node per model](#one-node-per-model).
+  </Step>
+</Steps>
+
+## Costs and caching
+
+Every run is a paid request, billed to your ModelRunner balance. There is no subscription. Read these before you queue large batches:
+
+- **Unchanged nodes are free to re-queue.** ComfyUI skips a node whose inputs did not change and reuses its last result. Seed widgets start on **fixed**, so re-queueing the same graph costs nothing.
+- **Randomized seeds and `force_rerun` run again.** Set a seed to **randomize**, or turn **force_rerun** on, and every queue is a new paid run.
+- **Video, audio and 3D nodes run even with nothing connected after them.** One left in the graph with no downstream node is still run, and billed, whenever its inputs change.
+- **Interrupting stops the wait, not the job.** A submitted run keeps going and is charged if it completes. Find it later by its request ID on the [requests page](https://modelrunner.ai/settings/requests).
+- **A failed run is not charged.**
+- **The printed cost is an average.** It is the model's recent average per run. Many video and audio models charge per second of output, so a longer clip (more frames, or a lower fps for the same frames) costs more than that average. Check the model's page for its pricing.
+
+## Privacy
+
+Inputs you connect to a node are uploaded to ModelRunner's media host under unguessable URLs, and so are the results. Do not connect anything you would not upload to a cloud service. See [Data retention](/guides/data-retention) for how long files are kept.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="No ModelRunner API key">
+    The node fails with "No ModelRunner API key." Set `MODELRUNNER_API_KEY` in the environment ComfyUI starts from, or put the key in `modelrunner_api_key.txt` in the pack's folder, then restart ComfyUI. If the key file worked before, check whether a pack update replaced the folder. See [Set your API key](#set-your-api-key).
+  </Accordion>
+
+  <Accordion title="A model is missing from the node menu">
+    The typed nodes come from the catalog snapshot in your installed release. Run the model with **ModelRunner Run (any model)** and its `owner/alias` endpoint, or update the pack through ComfyUI Manager.
+  </Accordion>
+
+  <Accordion title="A video node has no VIDEO output">
+    Your ComfyUI is older than 0.12.1. Video and 3D nodes then output only file paths and URLs, and the console warns about it at startup. Update ComfyUI.
+  </Accordion>
+
+  <Accordion title="This ComfyUI cannot encode VIDEO inputs">
+    Your ComfyUI cannot send a connected VIDEO to the model. Update ComfyUI, or leave the video socket empty and pass the video's URL in `extra_json`.
+  </Accordion>
+
+  <Accordion title="A node asks you to fill in a required field">
+    A required input is empty. Connect the named socket or set the named widget. For a video input, you can set its URL in `extra_json` instead.
+  </Accordion>
+
+  <Accordion title="A node moved under ModelRunner/Retired">
+    The model left the catalog. Its node stays under **ModelRunner/Retired** so saved workflows still open, but running it raises an error that names the model to switch to.
+  </Accordion>
+
+  <Accordion title="A run completed but its download failed">
+    The error lists the result URLs, so the output is not lost. The run completed and was charged; download the files from those URLs, or find the request by its ID on the [requests page](https://modelrunner.ai/settings/requests).
+  </Accordion>
+
+  <Accordion title="A request is still running after the node stopped waiting">
+    The error says the request "may still finish". It can still complete and be charged. Check it by its request ID on the [requests page](https://modelrunner.ai/settings/requests).
+  </Accordion>
+</AccordionGroup>
+
+Report bugs on the pack's [issue tracker](https://github.com/modelrunner/modelrunner-comfyui/issues).

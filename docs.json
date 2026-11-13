@@ -55,8 +55,7 @@
               "guides/entities",
               "guides/characters",
               "guides/webhooks",
-              "guides/data-retention",
-              "guides/mcp-server"
+              "guides/data-retention"
             ]
           },
           {
@@ -65,6 +64,13 @@
               "clients/js-client",
               "clients/python-client",
               "recipes-nextjs-app"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "guides/mcp-server",
+              "guides/comfyui"
             ]
           }
         ]
